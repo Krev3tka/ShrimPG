@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/csv"
+	_ "encoding/csv"
 	"fmt"
-	_ "fmt"
 	"math/rand"
-	_ "math/rand"
+	"os"
+	_ "os"
 	"time"
 )
 
@@ -26,10 +28,39 @@ func PrintPasswords(password_keeper map[string]string) {
 
 }
 
+func WriteData(file *os.File, password_keeper map[string]string, service string, isFirst bool) {
+	writer := csv.NewWriter(file)
+
+	if isFirst {
+		if err := writer.Write([]string{"Service", "Password"}); err != nil {
+			fmt.Println(err)
+		}
+	}
+
+	err := writer.Write([]string{service, password_keeper[service]})
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	writer.Flush()
+}
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	var password_keeper = make(map[string]string)
+
+	file, err := os.Create("passwrods.csv")
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	defer file.Close()
+
+	isFirst := true
 
 	for {
 		var length int
@@ -68,6 +99,8 @@ func main() {
 
 		fmt.Printf("Пароль к сервису %s: %s\n", service, password_keeper[service])
 
+		WriteData(file, password_keeper, service, isFirst)
+
 		var fin string
 
 		fmt.Print("Хотите продолжить? (y/n): ")
@@ -76,6 +109,8 @@ func main() {
 		if fin == "n" {
 			break
 		}
+
+		isFirst = false
 	}
 
 	PrintPasswords(password_keeper)
