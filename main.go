@@ -20,7 +20,7 @@ func GeneratePassword(length int, characters string) string {
 }
 
 func PrintPasswords(password_keeper map[string]string) {
-	fmt.Println("Все ваши пароли:")
+	fmt.Println("All your passwords:")
 
 	for key, value := range password_keeper {
 		fmt.Printf("%s:\t%s\n", key, value)
@@ -67,28 +67,28 @@ func main() {
 		var service string
 		characters := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-		fmt.Print("Введите название сервиса, для которого вы хотите получить пароль: ")
+		fmt.Print("Enter service name for which you want to get password: ")
 		fmt.Scan(&service)
 
-		fmt.Print("Введите длину генериуремого пароля: ")
+		fmt.Print("Enter length of a password: ")
 		fmt.Scan(&length)
 
 		if length <= 0 {
-			fmt.Println("Длина пароля должна быть больше нуля")
+			fmt.Println("Password length must be greater than zero")
 			continue
 		}
 
 		var digits string
 		var symbols string
 
-		fmt.Print("Хотите добавить цифры? (0123456789) (y/n): ")
+		fmt.Print("Do you want add digits to your password? (0123456789) (y/n): ")
 		fmt.Scan(&digits)
 
 		if digits != "n" {
 			characters += "0123456789"
 		}
 
-		fmt.Print("Хотите добавить спец.символы? (!@#$%^&*()_+-=[]{}|;:',.<>?/) (y/n): ")
+		fmt.Print("Do you want add special characters to your password? (!@#$%^&*()_+-=[]{}|;:',.<>?/) (y/n): ")
 		fmt.Scan(&symbols)
 
 		if symbols != "n" {
@@ -97,13 +97,13 @@ func main() {
 
 		password_keeper[service] = GeneratePassword(length, characters)
 
-		fmt.Printf("Пароль к сервису %s: %s\n", service, password_keeper[service])
+		fmt.Printf("Password to the service %s: %s\n", service, password_keeper[service])
 
 		WriteData(file, password_keeper, service, isFirst)
 
 		var fin string
 
-		fmt.Print("Хотите продолжить? (y/n): ")
+		fmt.Print("Do you want to continue? (y/n): ")
 		fmt.Scan(&fin)
 
 		if fin == "n" {
