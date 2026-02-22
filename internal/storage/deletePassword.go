@@ -1,9 +1,9 @@
 package storage
 
 import (
-	"awesomeProject3/internal/model"
 	"encoding/json"
 	"fmt"
+	"github.com/Krev3tka/ShrimPG/internal/model"
 	"os"
 )
 

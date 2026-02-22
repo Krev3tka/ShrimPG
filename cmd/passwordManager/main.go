@@ -1,11 +1,10 @@
 package main
 
 import (
-	"awesomeProject3/internal/model"
-	"awesomeProject3/internal/storage"
 	"flag"
 	"fmt"
-	"strings"
+	"github.com/Krev3tka/ShrimPG/internal/storage"
+	"github.com/Krev3tka/ShrimPG/internal/utils"
 )
 
 func main() {
@@ -18,31 +17,52 @@ func main() {
 		return
 	}
 
+	masterKey := utils.GetMasterPassword()
+
 	switch args[0] {
-	case "create":
-		newEntry := make(model.Entry)
-
-		if ans, ok := storage.IsYourPasswordCool(args[2]); ok == false {
-			fmt.Println(ans)
-			return
-		} else {
-			fmt.Println(ans)
-		}
-
-		if len(args) < 3 {
-			fmt.Println("Please, recount arguments amount, maybe, you made a mistake")
-			return
-		} else if len(args) > 3 {
-			fullPassword := strings.Join(args[2:], " ")
-			newEntry[args[1]] = fullPassword
-		} else {
-			newEntry[args[1]] = args[2]
-		}
-		storage.Save(newEntry)
-		fmt.Println("We could write entry into the file.")
-
 	case "list":
-		storage.PrintList("passwords.json")
+		vault, err := storage.Load(masterKey)
+		if err != nil {
+			fmt.Printf("Access Denied: %v\n", err)
+			return
+		}
+
+		storage.PrintVault(vault)
+
+	case "create":
+		if len(args) < 3 {
+			fmt.Println("Yo, Shrimp! I need a name and a password. Usage: create <name> <password>")
+			return
+		}
+
+		vault, err := storage.Load(masterKey)
+
+		if args[2] == "random" {
+			vault[args[1]] = storage.GenerateKoolPassword(7)
+			storage.Save(vault, masterKey)
+			fmt.Println("Saved and encrypted")
+			fmt.Print("Shrimp is saved. Password is too kool now. Press [s]ee, to see it: ")
+
+			var choice string
+
+			fmt.Scan(&choice)
+
+			if choice == "s" {
+				fmt.Printf("Password: %s", vault[args[1]])
+			}
+			return
+		}
+
+		if err != nil {
+			fmt.Printf("Access Denied: %v\n", err)
+			return
+		}
+
+		vault[args[1]] = args[2]
+
+		storage.Save(vault, masterKey)
+		fmt.Println("Saved and encrypted")
+
 	case "delete":
 		if len(args) != 2 {
 			fmt.Println("Please, recount arguments amount, maybe, you made a mistake")
