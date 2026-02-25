@@ -55,8 +55,6 @@ var words = []string{
 	"planet", "star", "moon", "sun", "galaxy", "universe", "void", "space", "heaven", "hell",
 	"andromeda", "cassiopeia", "draco", "orion", "pegasus", "sirius", "vega", "rigel", "antares", "spica",
 	"binary", "cluster", "nova", "supernova", "blackhole", "event-horizon", "manifold", "parallax", "stardust", "zenith",
-
-	// --- Химия и Наука (Geek Level 100) ---
 	"helium", "neon", "argon", "krypton", "xenon", "radon", "lithium", "sodium", "potassium", "mercury",
 	"uranium", "cobalt", "nickel", "titanium", "chrome", "sulfur", "silicon", "carbon", "oxygen", "nitrogen",
 	"acid", "base", "alkali", "reaction", "catalyst", "enzyme", "polymer", "isotope", "quantum", "gravity",
