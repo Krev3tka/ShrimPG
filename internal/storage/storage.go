@@ -10,39 +10,37 @@ import (
 
 const FileName = "passwords.json"
 
-func Save(Entry model.Entry, masterPassword string) {
+func Save(Entry model.Entry, masterPassword string) error {
 	jsonData, err := json.Marshal(Entry)
 	if err != nil {
-		fmt.Printf("Shrimp is caught and cooked because of: %v", err)
-		return
+		return fmt.Errorf("Shrimp is caught and cooked because of: %w", err)
 	}
 
 	key := deriveKey(masterPassword)
 
 	encryptedData, err := Encrypt(jsonData, key)
 	if err != nil {
-		fmt.Printf("Shrimp is caught and cooked because of: %v", err)
-		return
+		return fmt.Errorf("Shrimp is caught and cooked because of: %w", err)
 	}
 
 	err = os.WriteFile(FileName, encryptedData, 0644)
 	if err != nil {
-		fmt.Printf("Shrimp is caught and cooked because of: %v", err)
-		return
+		return fmt.Errorf("Shrimp is caught and cooked because of: %v", err)
 	}
+
+	return nil
 }
 
 func Load(masterPassword string) (model.Entry, error) {
 	_, err := os.Stat(FileName)
 	if os.IsNotExist(err) {
 		fmt.Println("No vault found. Creating a new one for you, shrimp!")
-		return model.Entry{}, nil
+		return make(model.Entry), nil
 	}
 
 	encryptedData, err := os.ReadFile(FileName)
 	if err != nil {
-		fmt.Printf("Shrimp is caught and cooked because of: %v", err)
-		return nil, err
+		return nil, fmt.Errorf("Shrimp is caught and cooked because of: %w", err)
 	}
 
 	key := deriveKey(masterPassword)
@@ -61,4 +59,25 @@ func Load(masterPassword string) (model.Entry, error) {
 
 	return entry, nil
 
+}
+
+func Delete(serviceName string, masterPassword string) error {
+	vault, err := Load(masterPassword)
+	if err != nil {
+		return fmt.Errorf("Error: %w", err)
+	}
+
+	if _, ok := vault[serviceName]; ok {
+		delete(vault, serviceName)
+		fmt.Println("Password deleted successfully")
+	} else {
+		fmt.Println("We didn't found the password of the service")
+	}
+
+	err = Save(vault, masterPassword)
+	if err != nil {
+		return fmt.Errorf("Error: %w", err)
+	}
+
+	return nil
 }
