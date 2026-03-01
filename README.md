@@ -10,8 +10,8 @@ A minimal, blazingly fast, and slightly opinionated password manager written in 
 - [x] **Store**: Save passwords before you forget them again.
 - [x] **List**: See all your secrets in one place. All your secrets. Safe and easy. 
 - [x] **Delete**: Burn the evidence.
-- [ ] **Generate**: Create passwords so complex even you won't be able to log in (WIP).
-- [ ] **Encryption**: Actually locking the door instead of just closing it (WIP).
+- [x] **Generate**: Create passwords so complex even you won't be able to log in.
+- [x] **Encryption**: Actually locking the door instead of just closing it.
 
 ## 🚀 Installation (The "I'm a Pro" way)
 
@@ -38,6 +38,8 @@ Try these before filing a "it doesn't work" issue:
 
     Delete a service: go run cmd/passwordManager/main.go delete twitter (Good riddance!)
 
+    Catch a password: go run cmd/passwordManager/main.go catch reddit (important thing!)
+    
 ## ⚠️ Troubleshooting / FAQ
 
 Q: Where is my passwords.json? A: It's in the project folder. If it's missing, you probably deleted it. Nice job.
