@@ -12,6 +12,7 @@ A minimal, blazingly fast, and slightly opinionated password manager written in 
 - [x] **Delete**: Burn the evidence.
 - [x] **Generate**: Create passwords so complex even you won't be able to log in.
 - [x] **Encryption**: Actually locking the door instead of just closing it.
+- [ ] **Copying to clipboard** Absolutely safe and blazingly fast, for sure
 
 ## 🚀 Installation (The "I'm a Pro" way)
 
