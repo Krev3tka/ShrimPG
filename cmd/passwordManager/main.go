@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"log"
 
 	"github.com/Krev3tka/ShrimPG/internal/storage"
 	"github.com/Krev3tka/ShrimPG/internal/utils"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -24,15 +27,52 @@ func main() {
 
 	masterKey := utils.GetMasterPassword()
 
+	connStr := "postgres://shrimp_user:shrimp_password@localhost:5433/shrimp_vault"
+
+	dbPool, err := pgxpool.New(context.Background(), connStr)
+	if err != nil {
+		log.Fatalf("Unable to connect to database: %v\n", err)
+	}
+	defer dbPool.Close()
+
+	err = dbPool.Ping(context.Background())
+	if err != nil {
+		log.Fatalf("Database ping failed: %v\n", err)
+	}
+
+	fmt.Println("ShrimPG is swimming in Postgres Sea!")
+
+	myStore := storage.DBStorage{Pool: dbPool}
+
+	err = myStore.InitSchema()
+	if err != nil {
+		log.Fatalf("Error while initializing database: %v", err)
+	}
+
+	err = myStore.SeedCanary(masterKey)
+	if err != nil {
+		log.Fatalf("Error while initializing database: %v", err)
+	}
+
+	_, err = myStore.GetPassword("__MASTER_CHECK__", masterKey)
+	if err != nil {
+		log.Fatal("Master Password isn't right.\n")
+	}
+
 	switch args[0] {
 	case "list":
-		vault, err := storage.Load(masterKey)
+		vault, err := myStore.GetAllPasswords(masterKey)
 		if err != nil {
-			fmt.Printf("Access Denied: %v\n", err)
-			return
+			log.Fatalf("Error while reading passwords from database: %v", err)
 		}
 
-		storage.PrintVault(vault)
+		fmt.Print("Passwords list:\n\n")
+
+		for service, passwd := range vault {
+			fmt.Printf("%s: %s\n", service, passwd)
+		}
+
+		fmt.Println("\nDone.")
 
 	case "create":
 		if len(args) < 3 {
@@ -40,15 +80,12 @@ func main() {
 			return
 		}
 
-		vault, err := storage.Load(masterKey)
-		if err != nil {
-			fmt.Printf("Something went wrong: %v", err)
-			return
-		}
-
 		if args[2] == "random" {
-			vault[args[1]] = storage.GenerateKoolPassword(KoolPasswordLength)
-			storage.Save(vault, masterKey)
+			err := myStore.SavePassword(args[1], storage.GenerateKoolPassword(KoolPasswordLength), masterKey)
+			if err != nil {
+				fmt.Printf("Something went wrong: %v", err)
+				return
+			}
 			fmt.Println("Saved and encrypted")
 			fmt.Print("Shrimp is saved. Password is too kool now. Press [s]ee, to see it: ")
 
@@ -57,19 +94,21 @@ func main() {
 			fmt.Scan(&choice)
 
 			if choice == "s" {
-				fmt.Printf("Password: %s", vault[args[1]])
+				passwd, err := myStore.GetPassword(args[1], masterKey)
+				if err != nil {
+					fmt.Printf("Something went wrong: %v", err)
+					return
+				}
+				fmt.Printf("Password: %s", passwd)
 			}
 			return
 		}
 
+		err := myStore.SavePassword(args[1], args[2], masterKey)
 		if err != nil {
-			fmt.Printf("Access Denied: %v\n", err)
+			fmt.Printf("Something went wrong: %v", err)
 			return
 		}
-
-		vault[args[1]] = args[2]
-
-		storage.Save(vault, masterKey)
 		fmt.Println("Saved and encrypted")
 	case "catch":
 		if len(args) == 1 {
@@ -77,18 +116,14 @@ func main() {
 			return
 		}
 
-		vault, err := storage.Load(masterKey)
-		if err != nil {
-			fmt.Printf("Something went wrong: %v", err)
-			return
-		}
-
 		for i := 1; i < len(args); i++ {
-			if _, ok := vault[args[i]]; !ok {
-				fmt.Printf("Password for service '%s' isn't found\n", args[i])
+			passwd, err := myStore.GetPassword(args[i], masterKey)
+			if err != nil {
+				fmt.Printf("Something went wrong: %v", err)
 				continue
 			}
-			fmt.Printf("Password number %d: %s\n", i, vault[args[i]])
+
+			fmt.Printf("Password number %d: %s\n", i, passwd)
 		}
 
 	case "turf":
@@ -96,7 +131,7 @@ func main() {
 			fmt.Println("Please, recount arguments amount, maybe, you made a mistake")
 			return
 		}
-		err := storage.Delete(args[1], masterKey)
+		err := myStore.DeletePassword(args[1])
 		if err != nil {
 			fmt.Printf("Error while turfing: %v", err)
 		}

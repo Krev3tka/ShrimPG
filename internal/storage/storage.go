@@ -1,83 +1,92 @@
 package storage
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"os"
 
 	"github.com/Krev3tka/ShrimPG/internal/model"
 )
 
 const FileName = "passwords.json"
 
-func Save(Entry model.Entry, masterPassword string) error {
-	jsonData, err := json.Marshal(Entry)
+func (s *DBStorage) SavePassword(service string, password string, masterKey string) error {
+	key := deriveKey(masterKey)
+	query := `
+		INSERT INTO shrimp_vault_schema.passwords (service_name, encrypted_data)
+		VALUES ($1, $2)
+	`
+
+	fmt.Printf("DEBUG: Executing query for service: %s\n", service)
+
+	encrypted, err := Encrypt([]byte(password), key)
+
+	_, err = s.Pool.Exec(context.Background(), query, service, encrypted)
 	if err != nil {
-		return fmt.Errorf("Shrimp is caught and cooked because of: %w", err)
+		return err
 	}
-
-	key := deriveKey(masterPassword)
-
-	encryptedData, err := Encrypt(jsonData, key)
-	if err != nil {
-		return fmt.Errorf("Shrimp is caught and cooked because of: %w", err)
-	}
-
-	err = os.WriteFile(FileName, encryptedData, 0644)
-	if err != nil {
-		return fmt.Errorf("Shrimp is caught and cooked because of: %v", err)
-	}
-
 	return nil
 }
 
-func Load(masterPassword string) (model.Entry, error) {
-	_, err := os.Stat(FileName)
-	if os.IsNotExist(err) {
-		fmt.Println("No vault found. Creating a new one for you, shrimp!")
-		return make(model.Entry), nil
-	}
+func (s *DBStorage) GetPassword(serviceName string, masterKey string) ([]byte, error) {
+	key := deriveKey(masterKey)
+	query := `SELECT encrypted_data FROM shrimp_vault_schema.passwords WHERE service_name = $1`
 
-	encryptedData, err := os.ReadFile(FileName)
-	if err != nil {
-		return nil, fmt.Errorf("Shrimp is caught and cooked because of: %w", err)
-	}
+	var encryptedData []byte
 
-	key := deriveKey(masterPassword)
-
-	jsonData, err := Decrypt(encryptedData, key)
-	if err != nil {
-		return model.Entry{}, fmt.Errorf("wrong master password or corrupted file.")
-	}
-
-	var entry model.Entry
-
-	err = json.Unmarshal(jsonData, &entry)
+	err := s.Pool.QueryRow(context.Background(), query, serviceName).Scan(&encryptedData)
 	if err != nil {
 		return nil, err
 	}
 
-	return entry, nil
+	decryptedData, err := Decrypt(encryptedData, key)
+	if err != nil {
+		return nil, err
+	}
 
+	return decryptedData, nil
 }
 
-func Delete(serviceName string, masterPassword string) error {
-	vault, err := Load(masterPassword)
+func (s *DBStorage) DeletePassword(service string) error {
+	query := `DELETE FROM shrimp_vault_schema.passwords WHERE service_name = $1`
+
+	result, err := s.Pool.Exec(context.Background(), query, service)
 	if err != nil {
-		return fmt.Errorf("Error: %w", err)
+		return err
 	}
 
-	if _, ok := vault[serviceName]; ok {
-		delete(vault, serviceName)
-		fmt.Println("Password deleted successfully")
-	} else {
-		fmt.Println("We didn't found the password of the service")
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("service not found")
 	}
-
-	err = Save(vault, masterPassword)
-	if err != nil {
-		return fmt.Errorf("Error: %w", err)
-	}
-
 	return nil
+}
+
+func (s *DBStorage) GetAllPasswords(masterKey string) (model.Entry, error) {
+	key := deriveKey(masterKey)
+	query := `SELECT service_name, encrypted_data FROM shrimp_vault_schema.passwords`
+
+	rows, err := s.Pool.Query(context.Background(), query)
+	if err != nil {
+		return nil, err
+	}
+
+	entry := make(model.Entry)
+
+	for rows.Next() {
+		var serviceName string
+		var passwd []byte
+
+		err := rows.Scan(&serviceName, &passwd)
+		if err != nil {
+			return nil, err
+		}
+
+		decryptedData, err := Decrypt(passwd, key)
+		if err != nil {
+			return nil, err
+		}
+
+		entry[serviceName] = string(decryptedData)
+	}
+
+	return entry, nil
 }
