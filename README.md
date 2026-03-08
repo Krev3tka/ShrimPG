@@ -1,7 +1,9 @@
 # ShrimPG 🦐
 > **Shrimp**-powered **P**assword **G**ate — secure, fast, and elegant.
 
-![ShrimPG Logo](assets/photo_2026-03-08_23-04-36.jpg)
+<p align="center">
+  <img src="assets/photo_2026-03-08_23-04-36.jpg" width="200" alt="ShrimPG Logo">
+</p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/badge/go-1.22+-blue.svg)](https://golang.org)
