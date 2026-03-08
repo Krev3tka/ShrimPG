@@ -21,7 +21,7 @@ func GetMasterPassword() string {
 
 	password := string(bytePassword)
 	if strings.TrimSpace(password) == "" {
-		fmt.Println("Empty password? Are you serious?\n(It's time to introduce a sobriety test)")
+		fmt.Println("Password is empty")
 		os.Exit(1)
 	}
 

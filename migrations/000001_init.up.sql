@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS passwords;
+DROP TABLE IF EXISTS users;
+
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(64) NOT NULL
+);
+
+CREATE TABLE passwords (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    service VARCHAR(64) NOT NULL UNIQUE,
+    encrypted_data BYTEA NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    master_check TEXT DEFAULT 'OK'
+);

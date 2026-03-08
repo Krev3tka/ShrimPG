@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func GenerateKoolPassword(length int) string {
+func GeneratePassword(length int) string {
 
 	if length > len(words) {
 		length = len(words)
