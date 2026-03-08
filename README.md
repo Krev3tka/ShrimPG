@@ -1,8 +1,11 @@
-# ShrimPG
+# ShrimPG 🦐
+> **Shrimp**-powered **P**assword **G**ate — secure, fast, and elegant.
+
+![ShrimPG Logo](assets/logo.png)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Go Version](https://img.shields.io/badge/go-1.25+-blue.svg)](https://golang.org)
-[![Rust Version](https://img.shields.io/badge/rust-1.75+-orange.svg)](https://www.rust-lang.org)
+[![Go Version](https://img.shields.io/badge/go-1.22+-blue.svg)](https://golang.org)
+...
 
 ShrimPG is a high-performance secrets management system designed with a strong focus on security, modularity, and horizontal scalability.
 
@@ -47,12 +50,11 @@ docker-compose up -d
 ```
 
 📝 Roadmap
-
-    [ ] Finalize gRPC contracts (.proto files)
-
-    [ ] Implement AES-256 encryption in Rust module
-
-    [ ] CI/CD pipeline setup (GitHub Actions)
+- [x] **PostgreSQL Integration:** Docker-ready with volume persistence.
+- [x] **Session-based Auth:** Secure middleware with master-key validation.
+- [x] **CRUD Core:** Fully functional REST API for password management.
+- [ ] **Rust Integration:** Moving encryption logic to the Rust module via gRPC.
+- [ ] **Desktop Client:** Cross-platform GUI (Tauri + Rust).
 
 📄 License
 
