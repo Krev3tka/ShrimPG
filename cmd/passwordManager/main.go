@@ -6,16 +6,16 @@ import (
 	"os"
 
 	"github.com/Krev3tka/ShrimPG/internal/api"
+	"github.com/Krev3tka/ShrimPG/internal/auth"
 	"github.com/Krev3tka/ShrimPG/internal/db"
 	"github.com/Krev3tka/ShrimPG/internal/storage"
-	"github.com/Krev3tka/ShrimPG/internal/utils"
 )
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	masterKey := utils.GetMasterPassword()
+	masterKey := auth.GetMasterPassword()
 
 	dbPool, err := db.Connect()
 	if err != nil {

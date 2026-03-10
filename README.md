@@ -11,7 +11,7 @@
 
 ShrimPG is a high-performance secrets management system designed with a strong focus on security, modularity, and horizontal scalability.
 
-## 🏛 Architecture Overview
+## Architecture Overview
 The project is built on microservices architecture principles, decoupling business logic between a high-performance Go backend and a memory-safe Rust cryptographic module.
 
 ```mermaid
@@ -21,7 +21,7 @@ graph LR
     GoApp -->|SQL| Postgres[(PostgreSQL)]
 ```
 
-🛠 Tech Stack
+Tech Stack
 
     Core: Go (Golang)
 
@@ -32,8 +32,9 @@ graph LR
     Database: PostgreSQL 16
 
     Infrastructure: Docker & Docker Compose
+ 
+Getting Started
 
-🚀 Getting Started
 Prerequisites
 
     Docker & Docker Compose
@@ -51,14 +52,14 @@ Start the infrastructure:
 docker-compose up -d
 ```
 
-📝 Roadmap
+Roadmap
 - [x] **PostgreSQL Integration:** Docker-ready with volume persistence.
 - [x] **Session-based Auth:** Secure middleware with master-key validation.
 - [x] **CRUD Core:** Fully functional REST API for password management.
 - [ ] **Rust Integration:** Moving encryption logic to the Rust module via gRPC.
 - [ ] **Desktop Client:** Cross-platform GUI (Tauri + Rust).
 
-📄 License
+License
 
 Distributed under the MIT License. See LICENSE for more information.
 

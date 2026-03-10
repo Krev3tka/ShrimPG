@@ -4,18 +4,46 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"crypto/sha256"
+	"golang.org/x/crypto/argon2"
 	"io"
 )
 
-func deriveKey(password string) []byte {
-	bytes := []byte(password)
-	hash := sha256.Sum256(bytes)
-
-	return hash[:]
+type params struct {
+	memory      uint32
+	iterations  uint32
+	parallelism uint8
+	saltLength  uint32
+	keyLength   uint32
 }
 
-func Encrypt(plaintext []byte, key []byte) ([]byte, error) {
+func deriveKey(password string, salt []byte, p *params) ([]byte, error) {
+
+	hash := argon2.Key([]byte(password), salt, p.iterations, p.memory, p.parallelism, p.keyLength)
+
+	return hash, nil
+}
+
+func generateRandomBytes(n uint32) ([]byte, error) {
+	b := make([]byte, n)
+	_, err := rand.Read(b)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+func Encrypt(plaintext []byte, password string, p *params) ([]byte, error) {
+	salt, err := generateRandomBytes(p.saltLength)
+	if err != nil {
+		return nil, err
+	}
+
+	key, err := deriveKey(password, salt, p)
+	if err != nil {
+		return nil, err
+	}
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
@@ -27,15 +55,22 @@ func Encrypt(plaintext []byte, key []byte) ([]byte, error) {
 	}
 
 	nonce := make([]byte, gcm.NonceSize())
-
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, err
 	}
 
-	return gcm.Seal(nonce, nonce, plaintext, nil), nil
+	result := append(salt, gcm.Seal(nonce, nonce, plaintext, nil)...)
+	return result, nil
 }
 
-func Decrypt(ciphertext []byte, key []byte) ([]byte, error) {
+func Decrypt(ciphertext []byte, password string, p *params) ([]byte, error) {
+	salt := ciphertext[:p.saltLength]
+
+	key, err := deriveKey(password, salt, p)
+	if err != nil {
+		return nil, err
+	}
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
@@ -46,9 +81,10 @@ func Decrypt(ciphertext []byte, key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	nonceSize := gcm.NonceSize()
-	nonce := ciphertext[:nonceSize]
-	actualCiphertext := ciphertext[nonceSize:]
+	nonceStart := p.saltLength
+	nonceEnd := nonceStart + uint32(gcm.NonceSize())
+	nonce := ciphertext[nonceStart:nonceEnd]
+	actualCiphertext := ciphertext[nonceEnd:]
 
 	plaintext, err := gcm.Open(nil, nonce, actualCiphertext, nil)
 	if err != nil {

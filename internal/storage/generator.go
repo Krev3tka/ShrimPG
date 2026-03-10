@@ -7,7 +7,6 @@ import (
 )
 
 func GeneratePassword(length int) string {
-
 	if length > len(words) {
 		length = len(words)
 	}
