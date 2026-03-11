@@ -9,11 +9,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Krev3tka/ShrimPG/internal/storage"
+	"github.com/Krev3tka/ShrimPG/internal/crypto"
+	"github.com/Krev3tka/ShrimPG/internal/db"
 )
 
 type Handler struct {
-	storage   *storage.DBStorage
+	storage   *db.DBStorage
 	masterKey string
 	sessions  map[string]bool
 	mu        sync.RWMutex
@@ -33,7 +34,7 @@ type PasswordResponse struct {
 	Password string `json:"password"`
 }
 
-func NewHandler(dbStorage *storage.DBStorage, key string) *Handler {
+func NewHandler(dbStorage *db.DBStorage, key string) *Handler {
 	return &Handler{
 		storage:   dbStorage,
 		masterKey: key,
@@ -65,6 +66,13 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreatePasswordRequest(w http.ResponseWriter, r *http.Request) {
+	p := &crypto.Params{
+		Memory:      64 * 1024,
+		Iterations:  3,
+		Parallelism: 2,
+		SaltLength:  12,
+		KeyLength:   16,
+	}
 	var req SaveRequest
 
 	if r.Method != http.MethodPost {
@@ -77,7 +85,7 @@ func (h *Handler) CreatePasswordRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := h.storage.SavePassword(1, req.Service, req.Password, h.masterKey); err != nil {
+	if err := h.db.SavePassword(1, req.Service, req.Password, h.masterKey, p); err != nil {
 		http.Error(w, "Failed to save password"+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -87,6 +95,13 @@ func (h *Handler) CreatePasswordRequest(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) GetPasswordRequest(w http.ResponseWriter, r *http.Request) {
+	p := &crypto.Params{
+		Memory:      64 * 1024,
+		Iterations:  3,
+		Parallelism: 2,
+		SaltLength:  12,
+		KeyLength:   16,
+	}
 	var req ServiceRequest
 
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
@@ -106,7 +121,7 @@ func (h *Handler) GetPasswordRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	passwd, err := h.storage.GetPassword(req.Service, h.masterKey)
+	passwd, err := h.storage.GetPassword(req.Service, h.masterKey, p)
 	if err != nil {
 		http.Error(w, "Failed to get password: "+err.Error(), http.StatusNotFound)
 		return

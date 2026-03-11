@@ -1,29 +1,30 @@
-package storage
+package crypto
 
 import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"golang.org/x/crypto/argon2"
 	"io"
+
+	"golang.org/x/crypto/argon2"
 )
 
-type params struct {
-	memory      uint32
-	iterations  uint32
-	parallelism uint8
-	saltLength  uint32
-	keyLength   uint32
+type Params struct {
+	Memory      uint32
+	Iterations  uint32
+	Parallelism uint8
+	SaltLength  uint32
+	KeyLength   uint32
 }
 
-func deriveKey(password string, salt []byte, p *params) ([]byte, error) {
+func DeriveKey(password string, salt []byte, p *Params) ([]byte, error) {
 
-	hash := argon2.Key([]byte(password), salt, p.iterations, p.memory, p.parallelism, p.keyLength)
+	hash := argon2.Key([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
 
 	return hash, nil
 }
 
-func generateRandomBytes(n uint32) ([]byte, error) {
+func GenerateRandomBytes(n uint32) ([]byte, error) {
 	b := make([]byte, n)
 	_, err := rand.Read(b)
 	if err != nil {
@@ -33,13 +34,13 @@ func generateRandomBytes(n uint32) ([]byte, error) {
 	return b, nil
 }
 
-func Encrypt(plaintext []byte, password string, p *params) ([]byte, error) {
-	salt, err := generateRandomBytes(p.saltLength)
+func Encrypt(plaintext []byte, password string, p *Params) ([]byte, error) {
+	salt, err := GenerateRandomBytes(p.SaltLength)
 	if err != nil {
 		return nil, err
 	}
 
-	key, err := deriveKey(password, salt, p)
+	key, err := DeriveKey(password, salt, p)
 	if err != nil {
 		return nil, err
 	}
@@ -63,10 +64,10 @@ func Encrypt(plaintext []byte, password string, p *params) ([]byte, error) {
 	return result, nil
 }
 
-func Decrypt(ciphertext []byte, password string, p *params) ([]byte, error) {
-	salt := ciphertext[:p.saltLength]
+func Decrypt(ciphertext []byte, password string, p *Params) ([]byte, error) {
+	salt := ciphertext[:p.SaltLength]
 
-	key, err := deriveKey(password, salt, p)
+	key, err := DeriveKey(password, salt, p)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +82,7 @@ func Decrypt(ciphertext []byte, password string, p *params) ([]byte, error) {
 		return nil, err
 	}
 
-	nonceStart := p.saltLength
+	nonceStart := p.SaltLength
 	nonceEnd := nonceStart + uint32(gcm.NonceSize())
 	nonce := ciphertext[nonceStart:nonceEnd]
 	actualCiphertext := ciphertext[nonceEnd:]

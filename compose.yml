@@ -1,4 +1,12 @@
 services:
+  app:
+    build: .
+    ports:
+      - "5433:8080"
+    depends_on:
+      - shrimp_db
+    networks:
+      - custom_net
   shrimp_db:
     image: postgres:15-alpine
     container_name: shrimp_db
@@ -8,7 +16,7 @@ services:
       - POSTGRES_DB=shrimp_db
     restart: unless-stopped
     ports:
-      - "5433:5432"
+      - "5432:5432"
     networks:
       - custom_net
 
@@ -17,4 +25,4 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.25.0.0/16
+        - subnet: 172.20.0.0/16

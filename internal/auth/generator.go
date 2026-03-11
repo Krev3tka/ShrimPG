@@ -1,17 +1,19 @@
-package storage
+package auth
 
 import (
 	"crypto/rand"
 	"math/big"
 	"strings"
+
+	"github.com/Krev3tka/ShrimPG/internal/pkg/dictionary"
 )
 
 func GeneratePassword(length int) string {
-	if length > len(words) {
-		length = len(words)
+	if length > len(dictionary.Words) {
+		length = len(dictionary.Words)
 	}
-	shuffled := make([]string, len(words))
-	copy(shuffled, words)
+	shuffled := make([]string, len(dictionary.Words))
+	copy(shuffled, dictionary.Words)
 
 	for i := len(shuffled) - 1; i > 0; i-- {
 

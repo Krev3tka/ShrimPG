@@ -8,7 +8,6 @@ import (
 	"github.com/Krev3tka/ShrimPG/internal/api"
 	"github.com/Krev3tka/ShrimPG/internal/auth"
 	"github.com/Krev3tka/ShrimPG/internal/db"
-	"github.com/Krev3tka/ShrimPG/internal/storage"
 )
 
 func main() {
@@ -26,7 +25,7 @@ func main() {
 
 	slog.Info("database connection established", "address", "localhost:5432")
 
-	vault := storage.NewDBStorage(dbPool)
+	vault := db.NewDBStorage(dbPool)
 
 	handler := api.NewHandler(vault, masterKey)
 
@@ -35,7 +34,7 @@ func main() {
 	http.HandleFunc("/passwords/delete", handler.AuthMiddleware(handler.DeletePasswordRequest))
 
 	slog.Info("Server is starting on :8080")
-	err = http.ListenAndServe(":8080", nil)
+	err = http.ListenAndServe("0.0.0.0:8080", nil)
 	if err != nil {
 		slog.Error("Server crashed", "error", err)
 		os.Exit(1)

@@ -1,16 +1,25 @@
-package storage
+package db
 
 import (
 	"context"
 	"fmt"
 
+	"github.com/Krev3tka/ShrimPG/internal/crypto"
 	"github.com/Krev3tka/ShrimPG/internal/model"
 )
 
-func (s *DBStorage) SavePassword(userID int, service string, passwd string, masterKey string) error {
-	key := deriveKey(masterKey)
+func (s *DBStorage) SavePassword(userID int, service string, passwd string, masterKey string, p *crypto.Params) error {
+	salt, err := crypto.GenerateRandomBytes(p.SaltLength)
+	if err != nil {
+		return err
+	}
 
-	encrypted, err := Encrypt([]byte(passwd), key)
+	key, err := crypto.DeriveKey(masterKey, salt, p)
+	if err != nil {
+		return fmt.Errorf("failed to derive key: %w", err)
+	}
+
+	encrypted, err := crypto.Encrypt([]byte(passwd), string(key), p)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt data: %w", err)
 	}
@@ -20,17 +29,26 @@ func (s *DBStorage) SavePassword(userID int, service string, passwd string, mast
 	return err
 }
 
-func (s *DBStorage) GetPassword(serviceName string, masterKey string) ([]byte, error) {
-	key := deriveKey(masterKey)
-	query := "SELECT encrypted_data FROM passwords WHERE service = $1"
-
-	var encryptedData []byte
-	err := s.Pool.QueryRow(context.Background(), query, serviceName).Scan(&encryptedData)
+func (s *DBStorage) GetPassword(serviceName string, masterKey string, p *crypto.Params) ([]byte, error) {
+	salt, err := crypto.GenerateRandomBytes(p.SaltLength)
 	if err != nil {
 		return nil, err
 	}
 
-	decryptedData, err := Decrypt(encryptedData, key)
+	key, err := crypto.DeriveKey(masterKey, salt, p)
+	if err != nil {
+		return nil, err
+	}
+
+	query := "SELECT encrypted_data FROM passwords WHERE service = $1"
+
+	var encryptedData []byte
+	err = s.Pool.QueryRow(context.Background(), query, serviceName).Scan(&encryptedData)
+	if err != nil {
+		return nil, err
+	}
+
+	decryptedData, err := crypto.Decrypt(encryptedData, string(key), p)
 	if err != nil {
 		return nil, err
 	}
@@ -52,8 +70,15 @@ func (s *DBStorage) DeletePassword(service string) error {
 	return nil
 }
 
-func (s *DBStorage) GetAllPasswords(masterKey string) (model.Entry, error) {
-	key := deriveKey(masterKey)
+func (s *DBStorage) GetAllPasswords(masterKey string, p *crypto.Params) (model.Entry, error) {
+	salt, err := crypto.GenerateRandomBytes(p.SaltLength)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive key: %w", err)
+	}
+	key, err := crypto.DeriveKey(masterKey, salt, p)
+	if err != nil {
+		return nil, err
+	}
 	query := "SELECT service, encrypted_data FROM passwords"
 
 	rows, err := s.Pool.Query(context.Background(), query)
@@ -73,7 +98,7 @@ func (s *DBStorage) GetAllPasswords(masterKey string) (model.Entry, error) {
 			return nil, err
 		}
 
-		decryptedData, err := Decrypt(passwd, key)
+		decryptedData, err := crypto.Decrypt(passwd, string(key), p)
 		if err != nil {
 			return nil, err
 		}
