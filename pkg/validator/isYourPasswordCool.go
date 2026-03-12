@@ -2,9 +2,9 @@ package validator
 
 import "unicode"
 
-func IsYourPasswordCool(passwd string) (string, bool) {
+func IsYourPasswordCool(passwd string) bool {
 	if len(passwd) < 12 {
-		return "You should think harder and come up with a new password", false
+		return false
 	}
 
 	var hasDigit, hasUpper, hasSpecial bool
@@ -21,8 +21,8 @@ func IsYourPasswordCool(passwd string) (string, bool) {
 	}
 
 	if !hasUpper || !hasDigit || !hasSpecial {
-		return "You need to think about adding uppercase letters, digits, or special characters", false
+		return false
 	}
 
-	return "Your password is cool", true
+	return true
 }
