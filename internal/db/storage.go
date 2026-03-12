@@ -29,12 +29,7 @@ func (s *DBStorage) SavePassword(userID int, service string, passwd string, mast
 	return err
 }
 
-func (s *DBStorage) GetPassword(serviceName string, masterKey string, p *crypto.Params) ([]byte, error) {
-	salt, err := crypto.GenerateRandomBytes(p.SaltLength)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *DBStorage) GetPassword(serviceName string, masterKey string, salt []byte, p *crypto.Params) ([]byte, error) {
 	key, err := crypto.DeriveKey(masterKey, salt, p)
 	if err != nil {
 		return nil, err

@@ -85,7 +85,7 @@ func (h *Handler) CreatePasswordRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := h.db.SavePassword(1, req.Service, req.Password, h.masterKey, p); err != nil {
+	if err := h.storage.SavePassword(1, req.Service, req.Password, h.masterKey, p); err != nil {
 		http.Error(w, "Failed to save password"+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -103,13 +103,18 @@ func (h *Handler) GetPasswordRequest(w http.ResponseWriter, r *http.Request) {
 		KeyLength:   16,
 	}
 	var req ServiceRequest
+	salt, err := crypto.GenerateRandomBytes(p.SaltLength)
+	if err != nil {
+		http.Error(w, "Failed to generate salt", http.StatusBadRequest)
+		return
+	}
 
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	err := json.NewDecoder(r.Body).Decode(&req)
+	err = json.NewDecoder(r.Body).Decode(&req)
 	if strings.Trim(req.Service, " ") == "" {
 		slog.Error("Error: null service name", "user_id", 1)
 		http.Error(w, "Error: null service name", http.StatusNotFound)
@@ -121,7 +126,7 @@ func (h *Handler) GetPasswordRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	passwd, err := h.storage.GetPassword(req.Service, h.masterKey, p)
+	passwd, err := h.storage.GetPassword(req.Service, h.masterKey, salt, p)
 	if err != nil {
 		http.Error(w, "Failed to get password: "+err.Error(), http.StatusNotFound)
 		return

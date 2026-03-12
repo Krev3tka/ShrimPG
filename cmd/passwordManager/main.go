@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/Krev3tka/ShrimPG/internal/api"
 	"github.com/Krev3tka/ShrimPG/internal/auth"
@@ -23,6 +25,11 @@ func main() {
 	}
 	defer dbPool.Close()
 
+	port := os.Getenv("HTTP_PORT")
+	if port == "" {
+		port = "8080"
+	}
+
 	slog.Info("database connection established", "address", "localhost:5432")
 
 	vault := db.NewDBStorage(dbPool)
@@ -33,10 +40,18 @@ func main() {
 	http.HandleFunc("/passwords/get", handler.AuthMiddleware(handler.GetPasswordRequest))
 	http.HandleFunc("/passwords/delete", handler.AuthMiddleware(handler.DeletePasswordRequest))
 
-	slog.Info("Server is starting on :8080")
-	err = http.ListenAndServe("0.0.0.0:8080", nil)
-	if err != nil {
-		slog.Error("Server crashed", "error", err)
-		os.Exit(1)
-	}
+	exit := make(chan os.Signal, 1)
+	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
+
+	slog.Info("Server is starting.", "port", port)
+	go func() {
+		err := http.ListenAndServe("0.0.0.0:"+port, nil)
+		if err != nil {
+			slog.Error("Server crashed", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	<-exit
+
 }
