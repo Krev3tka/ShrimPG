@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/Krev3tka/ShrimPG/internal/api"
 	"github.com/Krev3tka/ShrimPG/internal/auth"
@@ -34,6 +36,13 @@ func main() {
 
 	vault := db.NewDBStorage(dbPool)
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := vault.Ping(ctx); err != nil {
+		slog.Error("Database is unreachable", "error", err)
+		return
+	}
+
 	handler := api.NewHandler(vault, masterKey)
 
 	http.HandleFunc("/passwords/create", handler.AuthMiddleware(handler.CreatePasswordRequest))
@@ -44,8 +53,14 @@ func main() {
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
 	slog.Info("Server is starting.", "port", port)
+
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: nil,
+	}
+
 	go func() {
-		err := http.ListenAndServe("0.0.0.0:"+port, nil)
+		err := server.ListenAndServe()
 		if err != nil {
 			slog.Error("Server crashed", "error", err)
 			os.Exit(1)
@@ -54,4 +69,13 @@ func main() {
 
 	<-exit
 
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+
+	err = server.Shutdown(shutdownCtx)
+	if err != nil {
+		slog.Error("Error: failed to shutdown server correctly", "error", err)
+		return
+	}
+	slog.Info("Server stopped gracefully")
 }

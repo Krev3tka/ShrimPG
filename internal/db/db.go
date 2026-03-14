@@ -23,5 +23,4 @@ func Connect() (*pgxpool.Pool, error) {
 	}
 
 	return dbPoll, nil
-
 }
