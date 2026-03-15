@@ -40,12 +40,7 @@ func Encrypt(plaintext []byte, password string, p *Params) ([]byte, error) {
 		return nil, err
 	}
 
-	key, err := DeriveKey(password, salt, p)
-	if err != nil {
-		return nil, err
-	}
-
-	block, err := aes.NewCipher(key)
+	block, err := aes.NewCipher([]byte(password))
 	if err != nil {
 		return nil, err
 	}
@@ -65,14 +60,7 @@ func Encrypt(plaintext []byte, password string, p *Params) ([]byte, error) {
 }
 
 func Decrypt(ciphertext []byte, password string, p *Params) ([]byte, error) {
-	salt := ciphertext[:p.SaltLength]
-
-	key, err := DeriveKey(password, salt, p)
-	if err != nil {
-		return nil, err
-	}
-
-	block, err := aes.NewCipher(key)
+	block, err := aes.NewCipher([]byte(password))
 	if err != nil {
 		return nil, err
 	}

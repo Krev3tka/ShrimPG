@@ -25,7 +25,11 @@ func main() {
 		slog.Error("Database connection failed", "details", err)
 		return
 	}
-	defer dbPool.Close()
+	defer func() {
+		_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		dbPool.Close()
+	}()
 
 	port := os.Getenv("HTTP_PORT")
 	if port == "" {

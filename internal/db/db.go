@@ -10,12 +10,17 @@ import (
 )
 
 func Connect() (*pgxpool.Pool, error) {
-	err := godotenv.Load("../../.env")
-	if err != nil {
-		return nil, fmt.Errorf("error while loading .env file: %w", err)
+	paths := []string{".env", "../../.env"}
+	for _, path := range paths {
+		if err := godotenv.Load(path); err == nil {
+			break
+		}
 	}
 
 	connStr := os.Getenv("CONN_STR")
+	if connStr == "" {
+		return nil, fmt.Errorf("CONN_STR environment variable is not set")
+	}
 
 	dbPoll, err := pgxpool.New(context.Background(), connStr)
 	if err != nil {

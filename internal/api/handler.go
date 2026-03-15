@@ -8,13 +8,16 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-
-	"github.com/Krev3tka/ShrimPG/internal/crypto"
-	"github.com/Krev3tka/ShrimPG/internal/db"
 )
 
+type PasswordStorage interface {
+	SavePassword(userID int, service, passwd, masterKey string) error
+	GetPassword(serviceName, masterKey string) ([]byte, error)
+	DeletePassword(service string) error
+}
+
 type Handler struct {
-	storage   *db.DBStorage
+	storage   PasswordStorage
 	masterKey string
 	sessions  map[string]bool
 	mu        sync.RWMutex
@@ -34,7 +37,7 @@ type PasswordResponse struct {
 	Password string `json:"password"`
 }
 
-func NewHandler(dbStorage *db.DBStorage, key string) *Handler {
+func NewHandler(dbStorage PasswordStorage, key string) *Handler {
 	return &Handler{
 		storage:   dbStorage,
 		masterKey: key,
@@ -57,6 +60,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	token, err := generateRandomToken()
 	if err != nil {
 		slog.Error("Failed to generate token.")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 	h.mu.Lock()
@@ -66,13 +70,6 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreatePasswordRequest(w http.ResponseWriter, r *http.Request) {
-	p := &crypto.Params{
-		Memory:      64 * 1024,
-		Iterations:  3,
-		Parallelism: 2,
-		SaltLength:  12,
-		KeyLength:   16,
-	}
 	var req SaveRequest
 
 	if r.Method != http.MethodPost {
@@ -85,7 +82,7 @@ func (h *Handler) CreatePasswordRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := h.storage.SavePassword(1, req.Service, req.Password, h.masterKey, p); err != nil {
+	if err := h.storage.SavePassword(1, req.Service, req.Password, h.masterKey); err != nil {
 		http.Error(w, "Failed to save password"+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -95,26 +92,14 @@ func (h *Handler) CreatePasswordRequest(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) GetPasswordRequest(w http.ResponseWriter, r *http.Request) {
-	p := &crypto.Params{
-		Memory:      64 * 1024,
-		Iterations:  3,
-		Parallelism: 2,
-		SaltLength:  12,
-		KeyLength:   16,
-	}
 	var req ServiceRequest
-	salt, err := crypto.GenerateRandomBytes(p.SaltLength)
-	if err != nil {
-		http.Error(w, "Failed to generate salt", http.StatusBadRequest)
-		return
-	}
 
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	err = json.NewDecoder(r.Body).Decode(&req)
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if strings.Trim(req.Service, " ") == "" {
 		slog.Error("Error: null service name", "user_id", 1)
 		http.Error(w, "Error: null service name", http.StatusNotFound)
@@ -126,7 +111,7 @@ func (h *Handler) GetPasswordRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	passwd, err := h.storage.GetPassword(req.Service, h.masterKey, salt, p)
+	passwd, err := h.storage.GetPassword(req.Service, h.masterKey)
 	if err != nil {
 		http.Error(w, "Failed to get password: "+err.Error(), http.StatusNotFound)
 		return
