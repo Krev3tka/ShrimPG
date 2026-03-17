@@ -7,9 +7,13 @@ import (
 
 	"github.com/Krev3tka/ShrimPG/internal/crypto"
 	"github.com/Krev3tka/ShrimPG/internal/model"
+	"github.com/Krev3tka/ShrimPG/pkg/validator"
 )
 
 func (s *DBStorage) SavePassword(userID int, service string, passwd string, masterKey string) error {
+	if ok, err := validator.IsYourPasswordCool(passwd); !ok {
+		return fmt.Errorf("your password isn't safe yet: %w", err)
+	}
 	salt, err := crypto.GenerateRandomBytes(s.Config.params.SaltLength)
 	if err != nil {
 		return fmt.Errorf("db: save password: %w", err)

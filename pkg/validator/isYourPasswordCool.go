@@ -1,10 +1,13 @@
 package validator
 
-import "unicode"
+import (
+	"fmt"
+	"unicode"
+)
 
-func IsYourPasswordCool(passwd string) bool {
+func IsYourPasswordCool(passwd string) (bool, error) {
 	if len(passwd) < 12 {
-		return false
+		return false, fmt.Errorf("password is too short. The minimum required password length is 12 characters, your password has %d symbols", len(passwd))
 	}
 
 	var hasDigit, hasUpper, hasSpecial bool
@@ -20,9 +23,15 @@ func IsYourPasswordCool(passwd string) bool {
 		}
 	}
 
-	if !hasUpper || !hasDigit || !hasSpecial {
-		return false
+	if !hasDigit {
+		return false, fmt.Errorf("password has no digits")
+	}
+	if !hasUpper {
+		return false, fmt.Errorf("password has no uppercase letters")
+	}
+	if !hasSpecial {
+		return false, fmt.Errorf("password has no special symbols")
 	}
 
-	return true
+	return true, nil
 }

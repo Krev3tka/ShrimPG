@@ -1,24 +1,21 @@
 services:
   app:
-    build: .
-    ports:
-      - "5433:8080"
+    build: app/
     depends_on:
-      - shrimp_db
+      - db
     networks:
       - custom_net
-  shrimp_db:
-    image: postgres:15-alpine
-    container_name: shrimp_db
+  db:
+    image: postgres:16-alpine
     environment:
-      - POSTGRES_USER=shrimp_user
-      - POSTGRES_PASSWORD=shrimp_password
-      - POSTGRES_DB=shrimp_db
-    restart: unless-stopped
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     networks:
       - custom_net
+
 
 networks:
   custom_net:
