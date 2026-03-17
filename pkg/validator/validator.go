@@ -5,7 +5,7 @@ import (
 	"unicode"
 )
 
-func IsYourPasswordCool(passwd string) (bool, error) {
+func ValidatePassword(passwd string) (bool, error) {
 	if len(passwd) < 12 {
 		return false, fmt.Errorf("password is too short. The minimum required password length is 12 characters, your password has %d symbols", len(passwd))
 	}

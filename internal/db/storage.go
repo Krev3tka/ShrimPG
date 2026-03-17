@@ -11,7 +11,7 @@ import (
 )
 
 func (s *DBStorage) SavePassword(userID int, service string, passwd string, masterKey string) error {
-	if ok, err := validator.IsYourPasswordCool(passwd); !ok {
+	if ok, err := validator.ValidatePassword(passwd); !ok {
 		return fmt.Errorf("your password isn't safe yet: %w", err)
 	}
 	salt, err := crypto.GenerateRandomBytes(s.Config.params.SaltLength)
