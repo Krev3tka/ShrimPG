@@ -9,58 +9,60 @@
 [![Go Version](https://img.shields.io/badge/go-1.22+-blue.svg)](https://golang.org)
 ...
 
-ShrimPG is a high-performance secrets management system designed with a strong focus on security, modularity, and horizontal scalability.
+ShrimPG is a secure secrets management system designed with a focus on cryptographic integrity, modularity, and clean architecture.
 
 ## Architecture Overview
-The project is built on microservices architecture principles, decoupling business logic between a high-performance Go backend and a memory-safe Rust cryptographic module.
+The project follows a layered architecture, decoupling business logic from storage and security concerns:
+* **API Layer**: RESTful handlers with session-based middleware.
+* **Logic Layer**: Password validation and user context management.
+* **Security Layer**: High-level cryptographic primitives (AES-GCM, Argon2/Scrypt).
+* **Storage Layer**: PostgreSQL 16 with volume persistence.
 
-```mermaid
-graph LR
-    User -->|gRPC/REST| GoApp[Go Backend]
-    GoApp -->|gRPC| RustCrypto[Rust Crypto Service]
-    GoApp -->|SQL| Postgres[(PostgreSQL)]
-```
+## Security Workflow
+- **Zero-Password Storage**: The Master Password is never stored in the database. 
+- **Cryptographic Auth**: Authentication is verified by attempting to decrypt a "master_check" record. If decryption fails, the key is invalid.
+- **Unique Salting**: Every password entry uses a unique 12-byte salt for key derivation, protecting against rainbow table attacks.
+- **Graceful Shutdown**: The server ensures all database transactions are completed and connections are closed properly before exiting.
 
-Tech Stack
+## Tech Stack
+- **Core**: Go (Golang) 1.26+
+- **Database**: PostgreSQL 16
+- **Infrastructure**: Docker & Docker Compose
+- **Auth**: Token-based Session Management
 
-    Core: Go (Golang)
+## Getting Started
 
-    Security Module: Rust
+### Prerequisites
+- Docker & Docker Compose
 
-    Communication: gRPC / Protocol Buffers
+### Installation
+1. Clone the repository:
+   ``` Bash
+   git clone [https://github.com/Krev3tka/ShrimPG.git](https://github.com/Krev3tka/ShrimPG.git)
+   cd ShrimPG
 
-    Database: PostgreSQL 16
+2. Start the infrastructure:
+    ``` Bash
+    docker-compose up -d
+    
+3. Run the application:
+    ``` Bash
+    go run cmd/passwordManager/main.go
 
-    Infrastructure: Docker & Docker Compose
- 
-Getting Started
+🗺 Roadmap
 
-Prerequisites
+    [x] PostgreSQL Integration: Docker-ready with volume persistence.
 
-    Docker & Docker Compose
+    [x] Session-based Auth: Secure middleware with master-key validation.
 
-Installation
+    [x] CRUD Core: Fully functional REST API for password management.
 
-Clone the repository:
-```Bash
-git clone [https://github.com/Krev3tka/ShrimPG.git](https://github.com/Krev3tka/ShrimPG.git)
-cd ShrimPG
-```
+    [ ] Rust Integration: Moving encryption logic to a Rust module via gRPC.
 
-Start the infrastructure:
-```Bash
-docker-compose up -d
-```
+    [ ] Desktop Client: Cross-platform GUI (Tauri).
 
-Roadmap
-- [x] **PostgreSQL Integration:** Docker-ready with volume persistence.
-- [x] **Session-based Auth:** Secure middleware with master-key validation.
-- [x] **CRUD Core:** Fully functional REST API for password management.
-- [ ] **Rust Integration:** Moving encryption logic to the Rust module via gRPC.
-- [ ] **Desktop Client:** Cross-platform GUI (Tauri + Rust).
-
-License
+📄 License
 
 Distributed under the MIT License. See LICENSE for more information.
 
-Built with passion by Krev3tka
+Built with 🦐 passion by Krev3tka
