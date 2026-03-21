@@ -12,7 +12,7 @@ import (
 func Connect() (*pgxpool.Pool, error) {
 	paths := []string{".env", "../../.env"}
 	for _, path := range paths {
-		if err := godotenv.Load(path); err == nil {
+		if err := godotenv.Load(path); err != nil {
 			break
 		}
 	}

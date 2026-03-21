@@ -10,6 +10,43 @@ import (
 	"github.com/Krev3tka/ShrimPG/pkg/validator"
 )
 
+func (s *DBStorage) VerifyMasterKey(ctx context.Context, masterKey string) (bool, error) {
+	var encryptedData []byte
+	var salt []byte
+
+	query := "SELECT encrypted_data, salt FROM passwords LIMIT 1"
+	err := s.Pool.QueryRow(ctx, query).Scan(&encryptedData, &salt)
+	if err != nil {
+		return true, nil
+	}
+
+	key, _ := crypto.DeriveKey(masterKey, salt, s.Config.params)
+	_, err = crypto.Decrypt(encryptedData, string(key), s.Config.params)
+
+	if err != nil {
+		return false, fmt.Errorf("invalid master password")
+	}
+
+	return true, nil
+
+}
+
+func (s *DBStorage) GetDefaultUserID(ctx context.Context) (int, error) {
+	var id int
+
+	err := s.Pool.QueryRow(ctx, "SELECT id FROM users LIMIT 1").Scan(&id)
+
+	if err != nil {
+		err = s.Pool.QueryRow(ctx,
+			"INSERT INTO users (name) VALUES ($1) RETURNING id",
+			"ShrimpOwner").Scan(&id)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return id, nil
+}
+
 func (s *DBStorage) SavePassword(userID int, service string, passwd string, masterKey string) error {
 	if ok, err := validator.ValidatePassword(passwd); !ok {
 		return fmt.Errorf("your password isn't safe yet: %w", err)

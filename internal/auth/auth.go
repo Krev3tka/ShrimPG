@@ -1,14 +1,31 @@
 package auth
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/term"
 )
 
-func GetMasterPassword() string {
+func GetMasterPassword(dbPool *pgxpool.Pool) string {
+	query := "SELECT count(*) FROM passwords"
+	ctx := context.Background()
+
+	var count int
+	err := dbPool.QueryRow(ctx, query).Scan(&count)
+	if err != nil {
+		slog.Error("Failed to get count of passwords", "details", err)
+	}
+
+	if count == 0 {
+		fmt.Println("=== FIRST RUN: Create your Master Password ===")
+	} else {
+		fmt.Println("=== AUTH: Enter Master Password ===")
+	}
 	fmt.Print("Enter Master Password: ")
 
 	bytePassword, err := term.ReadPassword(int(os.Stdin.Fd()))

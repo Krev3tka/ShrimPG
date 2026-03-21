@@ -18,8 +18,6 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	masterKey := auth.GetMasterPassword()
-
 	dbPool, err := db.Connect()
 	if err != nil {
 		slog.Error("Database connection failed", "details", err)
@@ -31,6 +29,20 @@ func main() {
 		dbPool.Close()
 	}()
 
+	masterKey := auth.GetMasterPassword(dbPool)
+
+	vault := db.NewDBStorage(dbPool)
+	isValid, err := vault.VerifyMasterKey(context.Background(), masterKey)
+
+	if err != nil {
+		slog.Error("Failed to check your master password", "details", err)
+	}
+
+	if !isValid {
+		slog.Error("Invalid master password")
+		return
+	}
+
 	port := os.Getenv("HTTP_PORT")
 	if port == "" {
 		port = "8080"
@@ -38,17 +50,22 @@ func main() {
 
 	slog.Info("database connection established", "address", "localhost:5432")
 
-	vault := db.NewDBStorage(dbPool)
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
 	if err := vault.Ping(ctx); err != nil {
 		slog.Error("Database is unreachable", "error", err)
 		return
 	}
 
-	handler := api.NewHandler(vault, masterKey)
+	userID, err := vault.GetDefaultUserID(context.Background())
+	if err != nil {
+		slog.Error("failed to get userID", "details", err)
+	}
 
+	handler := api.NewHandler(vault, masterKey, userID)
+	
+	http.HandleFunc("/login", handler.Login)
 	http.HandleFunc("/passwords/create", handler.AuthMiddleware(handler.CreatePasswordRequest))
 	http.HandleFunc("/passwords/get", handler.AuthMiddleware(handler.GetPasswordRequest))
 	http.HandleFunc("/passwords/delete", handler.AuthMiddleware(handler.DeletePasswordRequest))
