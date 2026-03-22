@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/term"
 )
 
 func GetMasterPassword(dbPool *pgxpool.Pool) string {
@@ -28,15 +27,18 @@ func GetMasterPassword(dbPool *pgxpool.Pool) string {
 	}
 	fmt.Print("Enter Master Password: ")
 
-	bytePassword, err := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Println()
+	//bytePassword, err := term.ReadPassword(int(os.Stdin.Fd()))
+	//fmt.Println()
+
+	var password string
+	_, err = fmt.Scanln(&password)
 
 	if err != nil {
 		fmt.Println("Error reading password.")
 		os.Exit(1)
 	}
 
-	password := string(bytePassword)
+	//password := string(bytePassword)
 	if strings.TrimSpace(password) == "" {
 		fmt.Println("Password is empty")
 		os.Exit(1)

@@ -32,7 +32,12 @@ func main() {
 	masterKey := auth.GetMasterPassword(dbPool)
 
 	vault := db.NewDBStorage(dbPool)
-	isValid, err := vault.VerifyMasterKey(context.Background(), masterKey)
+	userID, err := vault.GetDefaultUserID(context.Background())
+	if err != nil {
+		slog.Error("failed to get userID", "details", err)
+	}
+
+	isValid, err := vault.VerifyMasterKey(context.Background(), userID, masterKey)
 
 	if err != nil {
 		slog.Error("Failed to check your master password", "details", err)
@@ -58,17 +63,14 @@ func main() {
 		return
 	}
 
-	userID, err := vault.GetDefaultUserID(context.Background())
-	if err != nil {
-		slog.Error("failed to get userID", "details", err)
-	}
+	handler := api.NewHandler(vault, userID)
 
-	handler := api.NewHandler(vault, masterKey, userID)
-	
 	http.HandleFunc("/login", handler.Login)
+	http.HandleFunc("/logout", handler.AuthMiddleware(handler.Logout))
 	http.HandleFunc("/passwords/create", handler.AuthMiddleware(handler.CreatePasswordRequest))
 	http.HandleFunc("/passwords/get", handler.AuthMiddleware(handler.GetPasswordRequest))
 	http.HandleFunc("/passwords/delete", handler.AuthMiddleware(handler.DeletePasswordRequest))
+	http.HandleFunc("/passwords/list", handler.AuthMiddleware(handler.GetAllPasswordsRequest))
 
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
@@ -76,14 +78,16 @@ func main() {
 	slog.Info("Server is starting.", "port", port)
 
 	server := &http.Server{
-		Addr:    ":" + port,
-		Handler: nil,
+		Addr:         ":" + port,
+		Handler:      nil,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  15 * time.Second,
 	}
 
 	go func() {
-		err := server.ListenAndServe()
-		if err != nil {
-			slog.Error("Server crashed", "error", err)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("Server crashed unexpectedly", "error", err)
 			os.Exit(1)
 		}
 	}()
