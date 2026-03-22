@@ -1,8 +1,10 @@
 package db
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/Krev3tka/ShrimPG/internal/crypto"
@@ -10,25 +12,35 @@ import (
 	"github.com/Krev3tka/ShrimPG/pkg/validator"
 )
 
-func (s *DBStorage) VerifyMasterKey(ctx context.Context, masterKey string) (bool, error) {
-	var encryptedData []byte
+func (s *DBStorage) VerifyMasterKey(ctx context.Context, userID int, masterKey string) (bool, error) {
+	var dbHash []byte
 	var salt []byte
 
-	query := "SELECT encrypted_data, salt FROM passwords LIMIT 1"
-	err := s.Pool.QueryRow(ctx, query).Scan(&encryptedData, &salt)
-	if err != nil {
+	query := "SELECT master_hash, master_salt FROM users LIMIT 1"
+	err := s.Pool.QueryRow(ctx, query).Scan(&dbHash, &salt)
+	if err != nil || len(dbHash) == 0 {
+		salt, _ := crypto.GenerateRandomBytes(s.Config.params.SaltLength)
+		key, _ := crypto.DeriveKey(masterKey, salt, s.Config.params)
+
+		_, err := s.Pool.Exec(ctx,
+			"UPDATE users SET master_hash = $1, master_salt = $2 WHERE id = $3",
+			key, salt, userID)
+		if err != nil {
+			return false, err
+		}
+
+		slog.Info("First run detected: no master key set yet")
 		return true, nil
 	}
 
 	key, _ := crypto.DeriveKey(masterKey, salt, s.Config.params)
-	_, err = crypto.Decrypt(encryptedData, string(key), s.Config.params)
 
-	if err != nil {
+	if !bytes.Equal(key, dbHash) {
 		return false, fmt.Errorf("invalid master password")
 	}
 
+	slog.Info("Master key verified successfully")
 	return true, nil
-
 }
 
 func (s *DBStorage) GetDefaultUserID(ctx context.Context) (int, error) {
@@ -83,7 +95,10 @@ func (s *DBStorage) GetPassword(serviceName string, masterKey string) ([]byte, e
 
 	var encryptedData []byte
 	var salt []byte
-	err := s.Pool.QueryRow(context.Background(), query, serviceName).Scan(&encryptedData, &salt)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := s.Pool.QueryRow(ctx, query, serviceName).Scan(&encryptedData, &salt)
 	if err != nil {
 		return nil, fmt.Errorf("db: get password: %w", err)
 	}
@@ -104,7 +119,9 @@ func (s *DBStorage) GetPassword(serviceName string, masterKey string) ([]byte, e
 func (s *DBStorage) DeletePassword(service string) error {
 	query := "DELETE FROM passwords WHERE service = $1"
 
-	result, err := s.Pool.Exec(context.Background(), query, service)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	result, err := s.Pool.Exec(ctx, query, service)
 	if err != nil {
 		return fmt.Errorf("db: delete password: %w", err)
 	}
@@ -115,10 +132,12 @@ func (s *DBStorage) DeletePassword(service string) error {
 	return nil
 }
 
-func (s *DBStorage) GetAllPasswords(masterKey string) (model.Entry, error) {
-	query := "SELECT salt, service, encrypted_data FROM passwords"
+func (s *DBStorage) GetAllPasswords(userID int, masterKey string) (model.Entry, error) {
+	query := "SELECT salt, service, encrypted_data FROM passwords WHERE user_id = $1"
 
-	rows, err := s.Pool.Query(context.Background(), query)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	rows, err := s.Pool.Query(ctx, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("db: get all passwords: %w", err)
 	}

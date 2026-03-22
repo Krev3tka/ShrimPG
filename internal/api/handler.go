@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -8,18 +9,21 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+
+	"github.com/Krev3tka/ShrimPG/internal/model"
 )
 
 type PasswordStorage interface {
 	SavePassword(userID int, service, passwd, masterKey string) error
 	GetPassword(serviceName, masterKey string) ([]byte, error)
 	DeletePassword(service string) error
+	VerifyMasterKey(ctx context.Context, userID int, masterKey string) (bool, error)
+	GetAllPasswords(userID int, masterKey string) (model.Entry, error)
 }
 
 type Handler struct {
 	storage       PasswordStorage
-	masterKey     string
-	sessions      map[string]bool
+	sessions      map[string]string
 	mu            sync.RWMutex
 	currentUserID int
 }
@@ -38,11 +42,10 @@ type PasswordResponse struct {
 	Password string `json:"password"`
 }
 
-func NewHandler(dbStorage PasswordStorage, key string, userId int) *Handler {
+func NewHandler(dbStorage PasswordStorage, userId int) *Handler {
 	return &Handler{
 		storage:       dbStorage,
-		masterKey:     key,
-		sessions:      make(map[string]bool),
+		sessions:      make(map[string]string),
 		currentUserID: userId,
 	}
 }
@@ -59,6 +62,10 @@ func generateRandomToken() (string, error) {
 }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
+	if r.Body != nil {
+		defer r.Body.Close()
+	}
+
 	var req struct {
 		Masterkey string `json:"master_key"`
 	}
@@ -68,8 +75,9 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Masterkey != h.masterKey {
-		http.Error(w, "Wrong master password", http.StatusForbidden)
+	ok, err := h.storage.VerifyMasterKey(r.Context(), h.currentUserID, req.Masterkey)
+	if err != nil || !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -80,14 +88,33 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.mu.Lock()
-	h.sessions[token] = true
+	h.sessions[token] = req.Masterkey
 	h.mu.Unlock()
-	json.NewEncoder(w).Encode(map[string]string{"token": token})
+
+	w.Header().Set("Content-Type", "application/json")
+
+	resp := map[string]string{"token": token}
+	json.NewEncoder(w).Encode(resp)
+}
+
+func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	authHeader := r.Header.Get("Authorization")
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+
+	delete(h.sessions, token)
+
+	slog.Info("Logout successful", "token_prefix", token[:4])
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Connection", "close")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"logged out"}`))
 }
 
 func (h *Handler) CreatePasswordRequest(w http.ResponseWriter, r *http.Request) {
-	var req SaveRequest
+	masterKey, _ := r.Context().Value("masterKey").(string)
 
+	var req SaveRequest
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -98,7 +125,7 @@ func (h *Handler) CreatePasswordRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := h.storage.SavePassword(h.currentUserID, req.Service, req.Password, h.masterKey); err != nil {
+	if err := h.storage.SavePassword(h.currentUserID, req.Service, req.Password, masterKey); err != nil {
 		http.Error(w, "Failed to save password"+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -108,6 +135,15 @@ func (h *Handler) CreatePasswordRequest(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) GetPasswordRequest(w http.ResponseWriter, r *http.Request) {
+	slog.Info("GetPasswordRequest started", "method", r.Method)
+
+	masterKey, ok := r.Context().Value("masterKey").(string)
+	if !ok || masterKey == "" {
+		http.Error(w, "Unauthorized: session missing key", http.StatusUnauthorized)
+		return
+	}
+
+	slog.Info("Attempting to decode JSON body")
 	var req ServiceRequest
 
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
@@ -116,18 +152,18 @@ func (h *Handler) GetPasswordRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
 	if strings.Trim(req.Service, " ") == "" {
 		slog.Error("Error: null service name", "user_id", h.currentUserID)
 		http.Error(w, "Error: null service name", http.StatusNotFound)
 		return
 	}
 
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	passwd, err := h.storage.GetPassword(req.Service, h.masterKey)
+	passwd, err := h.storage.GetPassword(req.Service, masterKey)
 	if err != nil {
 		http.Error(w, "Failed to get password: "+err.Error(), http.StatusNotFound)
 		return
@@ -138,6 +174,7 @@ func (h *Handler) GetPasswordRequest(w http.ResponseWriter, r *http.Request) {
 		Service:  req.Service,
 		Password: string(passwd),
 	})
+	slog.Info("JSON decoded successfully", "service", req.Service)
 	if err != nil {
 		http.Error(w, "Failed to write JSON"+err.Error(), http.StatusInternalServerError)
 		return
@@ -172,4 +209,27 @@ func (h *Handler) DeletePasswordRequest(w http.ResponseWriter, r *http.Request) 
 
 	w.WriteHeader(http.StatusOK)
 	slog.Info("Password deleted successfully", "user_id", h.currentUserID)
+}
+
+func (h *Handler) GetAllPasswordsRequest(w http.ResponseWriter, r *http.Request) {
+	masterKey, _ := r.Context().Value("masterKey").(string)
+
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+
+	passwords, err := h.storage.GetAllPasswords(h.currentUserID, masterKey)
+	if err != nil {
+		http.Error(w, "Failed to get passwords: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("All passwords retrieved", "count", len(passwords), "user_id", h.currentUserID)
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(passwords); err != nil {
+		slog.Error("Failed to encode response", "err", err)
+		return
+	}
 }
