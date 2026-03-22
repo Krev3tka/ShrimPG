@@ -4,7 +4,7 @@ build:
 	go build -o /bin/shrimpg .cmd/passwordManager/main.go
 
 run:
-	go run .cmd/passwordManager/main.go
+	go run ./cmd/passwordManager/main.go
 
 clear:
 	rm -rf bin/
