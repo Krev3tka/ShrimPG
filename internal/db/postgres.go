@@ -9,7 +9,7 @@ import (
 )
 
 type Config struct {
-	params *crypto.Params
+	params *crypto.Argon2Params
 }
 
 type DBStorage struct {
@@ -21,7 +21,7 @@ func NewDBStorage(pool *pgxpool.Pool) *DBStorage {
 	return &DBStorage{
 		Pool: pool,
 		Config: Config{
-			params: &crypto.Params{
+			params: &crypto.Argon2Params{
 				Memory:      64 * 1024,
 				Iterations:  3,
 				Parallelism: 2,

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/Krev3tka/ShrimPG/internal/crypto"
@@ -12,103 +11,86 @@ import (
 	"github.com/Krev3tka/ShrimPG/pkg/validator"
 )
 
-func (s *DBStorage) VerifyMasterKey(ctx context.Context, userID int, masterKey string) (bool, error) {
-	var dbHash []byte
-	var salt []byte
+func (s *DBStorage) VerifyMasterKey(ctx context.Context, username string, masterKey string) (int, []byte, error) {
+	var dbHash, salt []byte
+	var userID int
 
-	query := "SELECT master_hash, master_salt FROM users LIMIT 1"
-	err := s.Pool.QueryRow(ctx, query).Scan(&dbHash, &salt)
-	if err != nil || len(dbHash) == 0 {
-		salt, _ := crypto.GenerateRandomBytes(s.Config.params.SaltLength)
-		key, _ := crypto.DeriveKey(masterKey, salt, s.Config.params)
-
-		_, err := s.Pool.Exec(ctx,
-			"UPDATE users SET master_hash = $1, master_salt = $2 WHERE id = $3",
-			key, salt, userID)
-		if err != nil {
-			return false, err
-		}
-
-		slog.Info("First run detected: no master key set yet")
-		return true, nil
-	}
-
-	key, _ := crypto.DeriveKey(masterKey, salt, s.Config.params)
-
-	if !bytes.Equal(key, dbHash) {
-		return false, fmt.Errorf("invalid master password")
-	}
-
-	slog.Info("Master key verified successfully")
-	return true, nil
-}
-
-func (s *DBStorage) GetDefaultUserID(ctx context.Context) (int, error) {
-	var id int
-
-	err := s.Pool.QueryRow(ctx, "SELECT id FROM users LIMIT 1").Scan(&id)
-
+	query := "SELECT id, master_hash, master_salt FROM users WHERE name = $1"
+	err := s.Pool.QueryRow(ctx, query, username).Scan(&userID, &dbHash, &salt)
 	if err != nil {
-		err = s.Pool.QueryRow(ctx,
-			"INSERT INTO users (name) VALUES ($1) RETURNING id",
-			"ShrimpOwner").Scan(&id)
-		if err != nil {
-			return 0, err
-		}
-	}
-	return id, nil
-}
-
-func (s *DBStorage) SavePassword(userID int, service string, passwd string, masterKey string) error {
-	if ok, err := validator.ValidatePassword(passwd); !ok {
-		return fmt.Errorf("your password isn't safe yet: %w", err)
-	}
-	salt, err := crypto.GenerateRandomBytes(s.Config.params.SaltLength)
-	if err != nil {
-		return fmt.Errorf("db: save password: %w", err)
+		return 0, nil, fmt.Errorf("user not found: %w", err)
 	}
 
 	key, err := crypto.DeriveKey(masterKey, salt, s.Config.params)
 	if err != nil {
-		return fmt.Errorf("failed to derive key: %w", err)
+		return 0, nil, err
 	}
 
-	encrypted, err := crypto.Encrypt([]byte(passwd), string(key), s.Config.params)
+	if !bytes.Equal(key, dbHash) {
+		return 0, nil, fmt.Errorf("invalid master password")
+	}
+
+	return userID, key, nil
+}
+
+func (s *DBStorage) CreateUser(ctx context.Context, username string, masterKey string) (int, error) {
+	salt, err := crypto.GenerateRandomBytes(s.Config.params.SaltLength)
+
+	if err != nil {
+		return 0, err
+	}
+
+	hash, err := crypto.DeriveKey(masterKey, salt, s.Config.params)
+
+	if err != nil {
+		return 0, err
+	}
+
+	var id int
+	query := "INSERT INTO users (name, master_hash, master_salt) VALUES ($1, $2, $3) RETURNING id"
+
+	err = s.Pool.QueryRow(ctx, query, username, hash, salt).Scan(&id)
+
+	return id, err
+
+}
+
+func (s *DBStorage) SavePassword(userID int, service string, passwd string, encryptionKey []byte) error {
+	if ok, err := validator.ValidatePassword(passwd); !ok {
+		return fmt.Errorf("your password isn't safe yet: %w", err)
+	}
+
+	encrypted, err := crypto.Encrypt([]byte(passwd), string(encryptionKey), s.Config.params)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt data: %w", err)
 	}
 
-	query := "INSERT INTO passwords (user_id, salt, service, encrypted_data) VALUES ($1, $2, $3, $4)"
+	query := "INSERT INTO passwords (user_id, service, encrypted_data) VALUES ($1, $2, $3)"
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err = s.Pool.Exec(ctx, query, userID, salt, service, encrypted)
+	_, err = s.Pool.Exec(ctx, query, userID, service, encrypted)
 	if err != nil {
 		return fmt.Errorf("db exec error: %w", err)
 	}
 	return nil
 }
 
-func (s *DBStorage) GetPassword(serviceName string, masterKey string) ([]byte, error) {
+func (s *DBStorage) GetPassword(serviceName string, encryptionKey []byte) ([]byte, error) {
 	query := "SELECT encrypted_data, salt FROM passwords WHERE service = $1"
 
 	var encryptedData []byte
-	var salt []byte
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := s.Pool.QueryRow(ctx, query, serviceName).Scan(&encryptedData, &salt)
+
+	err := s.Pool.QueryRow(ctx, query, serviceName).Scan(&encryptedData)
 	if err != nil {
 		return nil, fmt.Errorf("db: get password: %w", err)
 	}
 
-	key, err := crypto.DeriveKey(masterKey, salt, s.Config.params)
-	if err != nil {
-		return nil, fmt.Errorf("db: get password: %w", err)
-	}
-
-	decryptedData, err := crypto.Decrypt(encryptedData, string(key), s.Config.params)
+	decryptedData, err := crypto.Decrypt(encryptedData, string(encryptionKey), s.Config.params)
 	if err != nil {
 		return nil, fmt.Errorf("db: get password: %w", err)
 	}
@@ -132,37 +114,33 @@ func (s *DBStorage) DeletePassword(service string) error {
 	return nil
 }
 
-func (s *DBStorage) GetAllPasswords(userID int, masterKey string) (model.Entry, error) {
-	query := "SELECT salt, service, encrypted_data FROM passwords WHERE user_id = $1"
+func (s *DBStorage) GetAllPasswords(userID int, encryptionKey []byte) (model.Entry, error) {
+	query := "SELECT service, encrypted_data FROM passwords WHERE user_id = $1"
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
 	rows, err := s.Pool.Query(ctx, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("db: get all passwords: %w", err)
 	}
+
 	defer rows.Close()
 
 	entry := make(model.Entry)
 
 	for rows.Next() {
 		var serviceName string
-		var passwd []byte
-		var rowSalt []byte
+		var encryptedData []byte
 
-		err := rows.Scan(&rowSalt, &serviceName, &passwd)
+		err := rows.Scan(&serviceName, &encryptedData)
 		if err != nil {
 			return nil, fmt.Errorf("db: get all passwords: %w", err)
 		}
 
-		key, err := crypto.DeriveKey(masterKey, rowSalt, s.Config.params)
+		decryptedData, err := crypto.Decrypt(encryptedData, string(encryptionKey), s.Config.params)
 		if err != nil {
-			return nil, fmt.Errorf("db: get all passwords: %w", err)
-		}
-
-		decryptedData, err := crypto.Decrypt(passwd, string(key), s.Config.params)
-		if err != nil {
-			return nil, fmt.Errorf("db: get all passwords: %w", err)
+			continue
 		}
 
 		entry[serviceName] = string(decryptedData)
