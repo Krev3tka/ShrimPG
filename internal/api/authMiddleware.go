@@ -17,14 +17,15 @@ func (h *Handler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		h.mu.RLock()
-		keyHex, exists := h.sessions[token]
-		defer h.mu.RUnlock()
+		session, exists := h.sessions[token]
+		h.mu.RUnlock()
 
-		if !exists || token == "" {
+		if !exists {
 			http.Error(w, "Invalid or expired session", http.StatusUnauthorized)
 			return
 		}
-		ctx := context.WithValue(r.Context(), "masterKey", keyHex)
+		ctx := context.WithValue(r.Context(), "masterKey", session.Key)
+		ctx = context.WithValue(ctx, "userID", session.UserID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }
