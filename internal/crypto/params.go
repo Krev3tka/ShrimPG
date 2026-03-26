@@ -9,7 +9,7 @@ type Argon2Params struct {
 }
 
 var DefaultParams = Argon2Params{
-	Memory:      64 * 1024, // 64 MB
+	Memory:      64 * 1024,
 	Iterations:  3,
 	Parallelism: 2,
 	SaltLength:  16,
