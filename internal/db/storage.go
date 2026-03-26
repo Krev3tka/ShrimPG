@@ -1,8 +1,8 @@
 package db
 
 import (
-	"bytes"
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"time"
 
@@ -26,7 +26,7 @@ func (s *DBStorage) VerifyMasterKey(ctx context.Context, username string, master
 		return 0, nil, err
 	}
 
-	if !bytes.Equal(key, dbHash) {
+	if ok := subtle.ConstantTimeCompare(key, dbHash); ok != 1 {
 		return 0, nil, fmt.Errorf("invalid master password")
 	}
 
@@ -77,15 +77,15 @@ func (s *DBStorage) SavePassword(userID int, service string, passwd string, encr
 	return nil
 }
 
-func (s *DBStorage) GetPassword(serviceName string, encryptionKey []byte) ([]byte, error) {
-	query := "SELECT encrypted_data, salt FROM passwords WHERE service = $1"
+func (s *DBStorage) GetPassword(userID int, serviceName string, encryptionKey []byte) ([]byte, error) {
+	query := "SELECT encrypted_data FROM passwords WHERE service = $1 AND user_id = $2"
 
 	var encryptedData []byte
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err := s.Pool.QueryRow(ctx, query, serviceName).Scan(&encryptedData)
+	err := s.Pool.QueryRow(ctx, query, serviceName, userID).Scan(&encryptedData)
 	if err != nil {
 		return nil, fmt.Errorf("db: get password: %w", err)
 	}
@@ -98,12 +98,12 @@ func (s *DBStorage) GetPassword(serviceName string, encryptionKey []byte) ([]byt
 	return decryptedData, nil
 }
 
-func (s *DBStorage) DeletePassword(service string) error {
-	query := "DELETE FROM passwords WHERE service = $1"
+func (s *DBStorage) DeletePassword(userID int, service string) error {
+	query := "DELETE FROM passwords WHERE service = $1 AND user_id = $2"
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	result, err := s.Pool.Exec(ctx, query, service)
+	result, err := s.Pool.Exec(ctx, query, service, userID)
 	if err != nil {
 		return fmt.Errorf("db: delete password: %w", err)
 	}
