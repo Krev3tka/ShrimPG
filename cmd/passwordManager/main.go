@@ -22,30 +22,47 @@ func main() {
 		slog.Error("Database connection failed", "details", err)
 		return
 	}
+
 	defer func() {
 		_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		dbPool.Close()
 	}()
 
-	port := os.Getenv("HTTP_PORT")
-	if port == "" {
-		port = "8080"
+	serverAddr := os.Getenv("SERVER_ADDRESS")
+	if serverAddr == "" {
+		serverAddr = "0.0.0.0:8080"
 	}
 
-	slog.Info("database connection established", "address", "localhost:5432")
+	slog.Info("database connection established", "address", os.Getenv("CONN_STR"))
 
 	vault := db.NewDBStorage(dbPool)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	for i := 0; i < 5; i++ {
+		err = dbPool.Ping(context.Background())
+		if err == nil {
+			break
+		}
+		slog.Info("Waiting for database...", "attempt", i+1)
+		time.Sleep(2 * time.Second)
+	}
 
 	if err := vault.Ping(ctx); err != nil {
 		slog.Error("Database is unreachable", "error", err)
 		return
 	}
 
-	handler := api.NewHandler(vault, 0)
+	slog.Info("running migrations...")
+	if err := db.InitMigrations(dbPool, "./migrations"); err != nil {
+		slog.Error("failed to run migrations", "error", err)
+		return
+	}
 
+	handler := api.NewHandler(vault)
+
+	http.HandleFunc("/register", handler.Register)
 	http.HandleFunc("/login", handler.Login)
 	http.HandleFunc("/logout", handler.AuthMiddleware(handler.Logout))
 	http.HandleFunc("/passwords/create", handler.AuthMiddleware(handler.CreatePasswordRequest))
@@ -56,10 +73,10 @@ func main() {
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
-	slog.Info("Server is starting.", "port", port)
+	slog.Info("Server is starting.", "address", serverAddr)
 
 	server := &http.Server{
-		Addr:         ":" + port,
+		Addr:         serverAddr,
 		Handler:      nil,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,

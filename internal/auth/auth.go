@@ -2,13 +2,14 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"log/slog"
-	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func GetMasterPassword(dbPool *pgxpool.Pool) string {
+func IsDatabaseEmpty(dbPool *pgxpool.Pool) bool {
 	query := "SELECT count(*) FROM passwords"
 	ctx := context.Background()
 
@@ -18,10 +19,16 @@ func GetMasterPassword(dbPool *pgxpool.Pool) string {
 		slog.Error("Failed to get count of passwords", "details", err)
 	}
 
-	var password string
+	return count == 0
+}
 
-	if strings.TrimSpace(password) == "" {
+func GenerateRandomToken() (string, error) {
+	b := make([]byte, 16)
+
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
 	}
 
-	return password
+	return hex.EncodeToString(b), nil
 }

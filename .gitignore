@@ -1,4 +1,11 @@
-passwords.json
 .idea/
+
+shrimpg
+/app
+
+.env
+
+postgres_data/
+
 dictionary.go
-.envmain
+

@@ -1,10 +1,18 @@
-.PHONY: build run clear
+BINARY_NAME=shrimpg
+BUILD_DIR=bin
+
+.PHONY: build clear run
 
 build:
-	go build -o /bin/shrimpg .cmd/passwordManager/main.go
-
-run:
-	go run ./cmd/passwordManager/main.go
+	@echo "Building..."
+	@mkdir -p $(BUILD_DIR)
+	go build -o bin/shrimpg cmd/passwordManager/main.go
 
 clear:
-	rm -rf bin/
+	@echo "Cleaning up..."
+	rm -rf $(BUILD_DIR)
+
+run: build
+	@echo "🚀 Running..."
+	./$(BUILD_DIR)/$(BINARY_NAME)
+
