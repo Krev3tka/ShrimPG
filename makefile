@@ -13,6 +13,6 @@ clear:
 	rm -rf $(BUILD_DIR)
 
 run: build
-	@echo "🚀 Running..."
+	@echo "Running..."
 	./$(BUILD_DIR)/$(BINARY_NAME)
 

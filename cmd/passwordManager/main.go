@@ -1,9 +1,11 @@
+// Copyright (C) 2026 krev3tka. Licensed under the GNU GPL v3.
 package main
 
 import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -34,10 +36,12 @@ func main() {
 		serverAddr = "0.0.0.0:8080"
 	}
 
-	slog.Info("database connection established", "address", os.Getenv("CONN_STR"))
-
+	u, err := url.Parse(serverAddr)
+	if err == nil {
+		slog.Info("database connection established", "host", u.Host)
+	}
 	vault := db.NewDBStorage(dbPool)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	for i := 0; i < 5; i++ {
@@ -49,11 +53,6 @@ func main() {
 		time.Sleep(2 * time.Second)
 	}
 
-	if err := vault.Ping(ctx); err != nil {
-		slog.Error("Database is unreachable", "error", err)
-		return
-	}
-
 	slog.Info("running migrations...")
 	if err := db.InitMigrations(dbPool, "./migrations"); err != nil {
 		slog.Error("failed to run migrations", "error", err)
@@ -62,13 +61,14 @@ func main() {
 
 	handler := api.NewHandler(vault)
 
-	http.HandleFunc("/register", handler.Register)
-	http.HandleFunc("/login", handler.Login)
-	http.HandleFunc("/logout", handler.AuthMiddleware(handler.Logout))
-	http.HandleFunc("/passwords/create", handler.AuthMiddleware(handler.CreatePasswordRequest))
-	http.HandleFunc("/passwords/get", handler.AuthMiddleware(handler.GetPasswordRequest))
-	http.HandleFunc("/passwords/delete", handler.AuthMiddleware(handler.DeletePasswordRequest))
-	http.HandleFunc("/passwords/list", handler.AuthMiddleware(handler.GetAllPasswordsRequest))
+	mux := http.NewServeMux()
+	mux.HandleFunc("/register", api.CORSmiddleware(handler.Register))
+	mux.HandleFunc("/login", api.CORSmiddleware(handler.Login))
+	mux.HandleFunc("/logout", handler.AuthMiddleware(handler.Logout))
+	mux.HandleFunc("/passwords/create", api.CORSmiddleware(handler.AuthMiddleware(handler.CreatePasswordRequest)))
+	mux.HandleFunc("/passwords/get", api.CORSmiddleware(handler.AuthMiddleware(handler.GetPasswordRequest)))
+	mux.HandleFunc("/passwords/delete", api.CORSmiddleware(handler.AuthMiddleware(handler.DeletePasswordRequest)))
+	mux.HandleFunc("/passwords/list", api.CORSmiddleware(handler.AuthMiddleware(handler.GetAllPasswordsRequest)))
 
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
@@ -82,6 +82,8 @@ func main() {
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  15 * time.Second,
 	}
+
+	server.Handler = mux
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

@@ -1,3 +1,4 @@
+// Copyright (C) 2026 krev3tka. Licensed under the GNU GPL v3.
 package api
 
 import (
@@ -40,3 +41,5 @@ type PasswordResponse struct {
 	Service  string `json:"service"`
 	Password string `json:"password"`
 }
+
+type contextKey string

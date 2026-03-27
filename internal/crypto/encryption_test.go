@@ -1,23 +1,26 @@
+// Copyright (C) 2026 krev3tka. Licensed under the GNU GPL v3.
 package crypto
 
 import "testing"
 
 func TestDeriveKey(t *testing.T) {
-	p := &Params{
-		Memory:      64 * 1024,
-		Iterations:  3,
-		Parallelism: 2,
-		SaltLength:  12,
-		KeyLength:   16,
-	}
-	password := "pass_word"
+	p := &DefaultParams
+	password := "Coolpass_word123!"
 	data := []byte("secret_data")
-	encrypted, err := Encrypt(data, password, p)
+
+	salt, err := GenerateRandomBytes(p.SaltLength)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	decrypted, err := Decrypt(encrypted, password, p)
+	key, err := DeriveKey(password, salt, p)
+
+	encrypted, err := Encrypt(data, string(key), p)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decrypted, err := Decrypt(encrypted, string(key), p)
 	if err != nil {
 		t.Fatal(err)
 	}

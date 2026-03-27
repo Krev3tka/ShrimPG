@@ -1,3 +1,4 @@
+// Copyright (C) 2026 krev3tka. Licensed under the GNU GPL v3.
 package validator
 
 import (

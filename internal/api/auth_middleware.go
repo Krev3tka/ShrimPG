@@ -1,3 +1,4 @@
+// Copyright (C) 2026 krev3tka. Licensed under the GNU GPL v3.
 package api
 
 import (
@@ -24,8 +25,9 @@ func (h *Handler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			http.Error(w, "Invalid or expired session", http.StatusUnauthorized)
 			return
 		}
-		ctx := context.WithValue(r.Context(), "masterKey", session.Key)
-		ctx = context.WithValue(ctx, "userID", session.UserID)
+
+		ctx := context.WithValue(r.Context(), contextKey("masterKey"), session.Key)
+		ctx = context.WithValue(ctx, contextKey("userID"), session.UserID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }

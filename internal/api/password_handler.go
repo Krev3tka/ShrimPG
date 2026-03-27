@@ -1,7 +1,7 @@
+// Copyright (C) 2026 krev3tka. Licensed under the GNU GPL v3.
 package api
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -43,7 +43,6 @@ func (h *Handler) GetPasswordRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req ServiceRequest
-
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -107,7 +106,8 @@ func (h *Handler) DeletePasswordRequest(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if strings.Trim(req.Service, " ") == "" {
-		slog.Info("Password already deleted or it didn't exist", "service", "user_id", userID)
+		slog.Info("Password already deleted or it didn't exist", "service", req.Service, "user_id", userID)
+		return
 	}
 
 	err = h.storage.DeletePassword(userID, req.Service)
@@ -122,21 +122,9 @@ func (h *Handler) DeletePasswordRequest(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) GetAllPasswordsRequest(w http.ResponseWriter, r *http.Request) {
-	keyHex, ok := r.Context().Value("masterKey").(string)
-	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	userID, ok := r.Context().Value("userID").(int)
-	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	encryptionKey, err := hex.DecodeString(keyHex)
+	userID, encryptionKey, err := getContextValues(r)
 	if err != nil {
-		http.Error(w, "Internal error", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

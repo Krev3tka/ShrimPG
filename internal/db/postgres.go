@@ -1,3 +1,4 @@
+// Copyright (C) 2026 krev3tka. Licensed under the GNU GPL v3.
 package db
 
 import (
@@ -21,13 +22,7 @@ func NewDBStorage(pool *pgxpool.Pool) *DBStorage {
 	return &DBStorage{
 		Pool: pool,
 		Config: Config{
-			params: &crypto.Argon2Params{
-				Memory:      64 * 1024,
-				Iterations:  3,
-				Parallelism: 2,
-				SaltLength:  12,
-				KeyLength:   16,
-			},
+			params: &crypto.DefaultParams,
 		},
 	}
 }

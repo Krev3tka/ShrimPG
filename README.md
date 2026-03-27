@@ -5,7 +5,7 @@
   <img src="assets/photo_2026-03-08_23-04-36.jpg" width="200" alt="ShrimPG Logo">
 </p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Go Version](https://img.shields.io/badge/go-1.22+-blue.svg)](https://golang.org)
 ...
 
@@ -63,6 +63,6 @@ The project follows a layered architecture, decoupling business logic from stora
 
 📄 License
 
-Distributed under the MIT License. See LICENSE for more information.
+Distributed under the GNU GPL v3 License. See LICENSE for more information.
 
 Built with 🦐 passion by Krev3tka
