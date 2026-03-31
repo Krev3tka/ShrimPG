@@ -3,13 +3,23 @@ package api
 
 import (
 	"context"
+	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 )
 
 func (h *Handler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		slog.Info("AUTH: Start checking token")
+
 		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			slog.Warn("AUTH: Empty header")
+			http.Error(w, "missing token", http.StatusUnauthorized)
+			return
+		}
+
 		token := strings.TrimPrefix(authHeader, "Bearer ")
 
 		if token == "" {
@@ -17,17 +27,26 @@ func (h *Handler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		h.mu.RLock()
-		session, exists := h.sessions[token]
-		h.mu.RUnlock()
-
-		if !exists {
-			http.Error(w, "Invalid or expired session", http.StatusUnauthorized)
+		data, err := h.rds.Get(r.Context(), "session:"+token).Bytes()
+		if err != nil {
+			http.Error(w, "Unauthorized: session expired", http.StatusUnauthorized)
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), contextKey("masterKey"), session.Key)
-		ctx = context.WithValue(ctx, contextKey("userID"), session.UserID)
+		var sess Session
+		if err := json.Unmarshal(data, &sess); err != nil {
+			slog.Error("Failed to unmarshal session", "error", err)
+			http.Error(w, "Internal error", http.StatusInternalServerError)
+			return
+		}
+
+		slog.Debug("Session data", "id", sess.UserID, "hasKey", sess.Key != "")
+
+		ctx := context.WithValue(r.Context(), contextKey("userID"), sess.UserID)
+		ctx = context.WithValue(ctx, contextKey("masterKey"), sess.Key)
+
+		slog.Info("AUTH: Success, passing to handler", "user", sess.UserID)
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }

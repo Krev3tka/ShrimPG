@@ -22,7 +22,7 @@ func (s *DBStorage) VerifyMasterKey(ctx context.Context, username string, master
 		return 0, nil, fmt.Errorf("user not found: %w", err)
 	}
 
-	key, err := crypto.DeriveKey(masterKey, salt, s.Config.params)
+	key, err := crypto.DeriveKey(masterKey, salt)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -41,7 +41,7 @@ func (s *DBStorage) CreateUser(ctx context.Context, username string, masterKey s
 		return 0, err
 	}
 
-	hash, err := crypto.DeriveKey(masterKey, salt, s.Config.params)
+	hash, err := crypto.DeriveKey(masterKey, salt)
 
 	if err != nil {
 		return 0, err
@@ -61,7 +61,7 @@ func (s *DBStorage) SavePassword(userID int, service string, passwd string, encr
 		return fmt.Errorf("your password isn't safe yet: %w", err)
 	}
 
-	encrypted, err := crypto.Encrypt([]byte(passwd), string(encryptionKey), s.Config.params)
+	encrypted, err := crypto.Encrypt([]byte(passwd), encryptionKey)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt data: %w", err)
 	}
@@ -91,7 +91,7 @@ func (s *DBStorage) GetPassword(userID int, serviceName string, encryptionKey []
 		return nil, fmt.Errorf("db: get password: %w", err)
 	}
 
-	decryptedData, err := crypto.Decrypt(encryptedData, string(encryptionKey), s.Config.params)
+	decryptedData, err := crypto.Decrypt(encryptedData, encryptionKey)
 	if err != nil {
 		return nil, fmt.Errorf("db: get password: %w", err)
 	}
@@ -139,7 +139,7 @@ func (s *DBStorage) GetAllPasswords(userID int, encryptionKey []byte) (model.Ent
 			return nil, fmt.Errorf("db: get all passwords: %w", err)
 		}
 
-		decryptedData, err := crypto.Decrypt(encryptedData, string(encryptionKey), s.Config.params)
+		decryptedData, err := crypto.Decrypt(encryptedData, encryptionKey)
 		if err != nil {
 			continue
 		}

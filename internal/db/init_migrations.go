@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -27,10 +28,22 @@ func InitMigrations(dbPool *pgxpool.Pool, migrationsDir string) error {
 				return fmt.Errorf("failed to read migration file %s: %w", file.Name(), err)
 			}
 
-			_, err = dbPool.Exec(context.Background(), string(content))
-			if err != nil {
-				return fmt.Errorf("failed to apply migration %s: %w", file.Name(), err)
+			commands := strings.Split(string(content), ";")
+			for _, cmd := range commands {
+				trimmedCmd := strings.TrimSpace(cmd)
+				if trimmedCmd == "" {
+					continue
+				}
+
+				execCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				_, err = dbPool.Exec(execCtx, trimmedCmd)
+				cancel()
+
+				if err != nil {
+					return fmt.Errorf("failed to apply command in %s: %w", file.Name(), err)
+				}
 			}
+
 			slog.Info("applied migration", "file", file.Name())
 		}
 	}

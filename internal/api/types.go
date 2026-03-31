@@ -3,9 +3,9 @@ package api
 
 import (
 	"context"
-	"sync"
 
 	"github.com/Krev3tka/ShrimPG/internal/model"
+	"github.com/redis/go-redis/v9"
 )
 
 type PasswordStorage interface {
@@ -18,14 +18,13 @@ type PasswordStorage interface {
 }
 
 type Handler struct {
-	storage  PasswordStorage
-	sessions map[string]Session
-	mu       sync.RWMutex
+	storage PasswordStorage
+	rds     *redis.Client
 }
 
 type Session struct {
-	UserID int
-	Key    string
+	UserID int    `json:"user_id"`
+	Key    string `json:"key"`
 }
 
 type SaveRequest struct {

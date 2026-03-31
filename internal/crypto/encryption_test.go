@@ -13,14 +13,14 @@ func TestDeriveKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	key, err := DeriveKey(password, salt, p)
+	key, err := DeriveKey(password, salt)
 
-	encrypted, err := Encrypt(data, string(key), p)
+	encrypted, err := Encrypt(data, key)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	decrypted, err := Decrypt(encrypted, string(key), p)
+	decrypted, err := Decrypt(encrypted, key)
 	if err != nil {
 		t.Fatal(err)
 	}

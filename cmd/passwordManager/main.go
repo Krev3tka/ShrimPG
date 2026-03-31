@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -13,11 +14,35 @@ import (
 
 	"github.com/Krev3tka/ShrimPG/internal/api"
 	"github.com/Krev3tka/ShrimPG/internal/db"
+	"github.com/Krev3tka/ShrimPG/internal/storage"
 )
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
+
+	cfg := storage.Config{
+		Addr:        "127.0.0.1:6379",
+		Password:    "",
+		User:        "",
+		DB:          0,
+		MaxRetries:  3,
+		DialTimeout: 1 * time.Second,
+		Timeout:     10 * time.Second,
+	}
+
+	redisDb, err := storage.NewClient(context.Background(), cfg)
+	if err != nil {
+		panic(err)
+	}
+
+	if err := redisDb.Set(context.Background(), "key", "test value", 0).Err(); err != nil {
+		fmt.Printf("failed to set data, error: %s", err.Error())
+	}
+
+	if err := redisDb.Set(context.Background(), "key2", 333, 30*time.Second).Err(); err != nil {
+		fmt.Printf("failed to set data, error: %s", err.Error())
+	}
 
 	dbPool, err := db.Connect()
 	if err != nil {
@@ -45,7 +70,9 @@ func main() {
 	defer cancel()
 
 	for i := 0; i < 5; i++ {
-		err = dbPool.Ping(context.Background())
+		pingCtx, cancelPing := context.WithTimeout(context.Background(), 2*time.Second)
+		err = dbPool.Ping(pingCtx)
+		cancelPing()
 		if err == nil {
 			break
 		}
@@ -59,7 +86,7 @@ func main() {
 		return
 	}
 
-	handler := api.NewHandler(vault)
+	handler := api.NewHandler(vault, redisDb)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/register", api.CORSmiddleware(handler.Register))

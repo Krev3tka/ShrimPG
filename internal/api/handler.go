@@ -1,9 +1,13 @@
 // Copyright (C) 2026 krev3tka. Licensed under the GNU GPL v3.
 package api
 
-func NewHandler(dbStorage PasswordStorage) *Handler {
+import (
+	"github.com/redis/go-redis/v9"
+)
+
+func NewHandler(dbStorage PasswordStorage, redisClient *redis.Client) *Handler {
 	return &Handler{
-		storage:  dbStorage,
-		sessions: make(map[string]Session),
+		storage: dbStorage,
+		rds:     redisClient,
 	}
 }

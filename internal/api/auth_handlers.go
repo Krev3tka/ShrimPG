@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Krev3tka/ShrimPG/internal/auth"
 )
@@ -30,18 +31,25 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sessionData := Session{
+		UserID: userID,
+		Key:    hex.EncodeToString(derivedKey),
+	}
+
+	data, _ := json.Marshal(sessionData)
+
 	token, err := auth.GenerateRandomToken()
 	if err != nil || token == "" {
 		http.Error(w, "Failed to generate token", http.StatusBadRequest)
 		return
 	}
 
-	h.mu.Lock()
-	h.sessions[token] = Session{
-		userID,
-		hex.EncodeToString(derivedKey),
+	err = h.rds.Set(r.Context(), "session:"+token, data, 15*time.Minute).Err()
+
+	if err != nil {
+		http.Error(w, "failed to set data to redis database", http.StatusBadRequest)
+		return
 	}
-	h.mu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
 
@@ -53,9 +61,10 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	authHeader := r.Header.Get("Authorization")
 	token := strings.TrimPrefix(authHeader, "Bearer ")
 
-	h.mu.Lock()
-	delete(h.sessions, token)
-	h.mu.Unlock()
+	err := h.rds.Del(r.Context(), "session:"+token).Err()
+	if err != nil {
+		slog.Error("Failed to delete data from redis DB", "error", err)
+	}
 
 	slog.Info("Logout attempt", "token_len", len(token))
 	if len(token) > 4 {

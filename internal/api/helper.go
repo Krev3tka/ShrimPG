@@ -8,12 +8,12 @@ import (
 )
 
 func getContextValues(r *http.Request) (int, []byte, error) {
-	keyHex, ok := r.Context().Value("masterKey").(string)
+	keyHex, ok := r.Context().Value(contextKey("masterKey")).(string)
 	if !ok {
 		return 0, nil, errors.New("missing masterKey")
 	}
 
-	userID, ok := r.Context().Value("userID").(int)
+	userID, ok := r.Context().Value(contextKey("userID")).(int)
 	if !ok {
 		return 0, nil, errors.New("missing userID")
 	}

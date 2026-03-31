@@ -1,6 +1,10 @@
 services:
   app:
     build: .
+    environment:
+      - CONN_STR=postgres://shrimp_user:shrimp_password@db:5432/shrimp_db
+      - SERVER_ADDRESS=0.0.0.0:8080
+      - REDIS_ADDR=redis:6379
     env_file:
       - .env
     ports:
@@ -21,10 +25,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "5432:5432"
-    networks:
-      - custom_net
+    network_mode: "host"
+  redis:
+    image: redis:7-alpine
+    network_mode: "host"
 
 
 networks:
@@ -32,4 +36,4 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16
+        - subnet: 10.20.0.0/24

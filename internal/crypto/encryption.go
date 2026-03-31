@@ -9,9 +9,9 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-func DeriveKey(password string, salt []byte, p *Argon2Params) ([]byte, error) {
+func DeriveKey(password string, salt []byte) ([]byte, error) {
 
-	hash := argon2.Key([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
+	hash := argon2.Key([]byte(password), salt, DefaultParams.Iterations, DefaultParams.Memory, DefaultParams.Parallelism, DefaultParams.KeyLength)
 
 	return hash, nil
 }
@@ -26,8 +26,8 @@ func GenerateRandomBytes(n uint32) ([]byte, error) {
 	return b, nil
 }
 
-func Encrypt(plaintext []byte, password string, p *Argon2Params) ([]byte, error) {
-	block, err := aes.NewCipher([]byte(password))
+func Encrypt(plaintext []byte, key []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
@@ -45,8 +45,8 @@ func Encrypt(plaintext []byte, password string, p *Argon2Params) ([]byte, error)
 	return gcm.Seal(nonce, nonce, plaintext, nil), nil
 }
 
-func Decrypt(ciphertext []byte, password string, p *Argon2Params) ([]byte, error) {
-	block, err := aes.NewCipher([]byte(password))
+func Decrypt(ciphertext []byte, key []byte) ([]byte, error) {
+	block, err := aes.NewCipher([]byte(key))
 	if err != nil {
 		return nil, err
 	}
