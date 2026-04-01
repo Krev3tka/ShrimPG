@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -21,8 +20,14 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
+	// __Конфигурация редиса__
+
+	// Получение редис-БД адрФеса
+	rdsAddr := os.Getenv("REDISDB_ADDRESS")
+
+	// Инициализация редис-конфигурации
 	cfg := storage.Config{
-		Addr:        "127.0.0.1:6379",
+		Addr:        rdsAddr,
 		Password:    "",
 		User:        "",
 		DB:          0,
@@ -31,31 +36,22 @@ func main() {
 		Timeout:     10 * time.Second,
 	}
 
+	// Инициализация клиента редис БД
 	redisDb, err := storage.NewClient(context.Background(), cfg)
 	if err != nil {
 		panic(err)
 	}
 
-	if err := redisDb.Set(context.Background(), "key", "test value", 0).Err(); err != nil {
-		fmt.Printf("failed to set data, error: %s", err.Error())
-	}
-
-	if err := redisDb.Set(context.Background(), "key2", 333, 30*time.Second).Err(); err != nil {
-		fmt.Printf("failed to set data, error: %s", err.Error())
-	}
-
+	// Создание пула соединений для БД
 	dbPool, err := db.Connect()
 	if err != nil {
 		slog.Error("Database connection failed", "details", err)
 		return
 	}
 
-	defer func() {
-		_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		dbPool.Close()
-	}()
+	// __Логика порта__
 
+	// Получение адреса http-сервера
 	serverAddr := os.Getenv("SERVER_ADDRESS")
 	if serverAddr == "" {
 		serverAddr = "0.0.0.0:8080"
@@ -65,10 +61,11 @@ func main() {
 	if err == nil {
 		slog.Info("database connection established", "host", u.Host)
 	}
-	vault := db.NewDBStorage(dbPool)
-	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
+	// Инициализация хранилища
+	vault := db.NewDBStorage(dbPool)
+
+	// Проверка БД на готовность. Эта проверка нужна на случай, когда Go-backend запускается быстрее БД
 	for i := 0; i < 5; i++ {
 		pingCtx, cancelPing := context.WithTimeout(context.Background(), 2*time.Second)
 		err = dbPool.Ping(pingCtx)
@@ -80,14 +77,19 @@ func main() {
 		time.Sleep(2 * time.Second)
 	}
 
+	// Инициализация SQL-миграций
 	slog.Info("running migrations...")
 	if err := db.InitMigrations(dbPool, "./migrations"); err != nil {
 		slog.Error("failed to run migrations", "error", err)
 		return
 	}
 
+	// __Хендлеры__
+
+	// Создание хендлера
 	handler := api.NewHandler(vault, redisDb)
 
+	// Инициализация эндпоинтов
 	mux := http.NewServeMux()
 	mux.HandleFunc("/register", api.CORSmiddleware(handler.Register))
 	mux.HandleFunc("/login", api.CORSmiddleware(handler.Login))
@@ -97,11 +99,15 @@ func main() {
 	mux.HandleFunc("/passwords/delete", api.CORSmiddleware(handler.AuthMiddleware(handler.DeletePasswordRequest)))
 	mux.HandleFunc("/passwords/list", api.CORSmiddleware(handler.AuthMiddleware(handler.GetAllPasswordsRequest)))
 
+	// Заготовка для graceful shutdown
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
 	slog.Info("Server is starting.", "address", serverAddr)
 
+	// __Сервер__
+
+	// Инициализация сервера
 	server := &http.Server{
 		Addr:         serverAddr,
 		Handler:      nil,
@@ -112,12 +118,15 @@ func main() {
 
 	server.Handler = mux
 
+	// Горутина для работы сервера. Обработка ошибки и потенциального краша
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("Server crashed unexpectedly", "error", err)
 			os.Exit(1)
 		}
 	}()
+
+	// Graceful shutdown
 
 	<-exit
 

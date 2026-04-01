@@ -59,6 +59,11 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		http.Error(w, "missing token", http.StatusUnauthorized)
+		return
+	}
+
 	token := strings.TrimPrefix(authHeader, "Bearer ")
 
 	err := h.rds.Del(r.Context(), "session:"+token).Err()
@@ -92,6 +97,8 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	if len(req.Username) <= 6 {
 		slog.Warn("Registration failed: username too short", "username", req.Username)
+		http.Error(w, "invalid username", http.StatusBadRequest)
+		return
 	}
 
 	if _, err := h.storage.CreateUser(r.Context(), req.Username, req.Masterkey); err != nil {

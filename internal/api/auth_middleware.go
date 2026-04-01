@@ -11,11 +11,8 @@ import (
 
 func (h *Handler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		slog.Info("AUTH: Start checking token")
-
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			slog.Warn("AUTH: Empty header")
 			http.Error(w, "missing token", http.StatusUnauthorized)
 			return
 		}
@@ -44,8 +41,6 @@ func (h *Handler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		ctx := context.WithValue(r.Context(), contextKey("userID"), sess.UserID)
 		ctx = context.WithValue(ctx, contextKey("masterKey"), sess.Key)
-
-		slog.Info("AUTH: Success, passing to handler", "user", sess.UserID)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}

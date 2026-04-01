@@ -9,7 +9,12 @@ import (
 	"github.com/Krev3tka/ShrimPG/internal/pkg/dictionary"
 )
 
-func GeneratePassword(length int) string {
+// GeneratePassphrase generates random passphrase consisting  of specified
+// number of words joined by a '-' separator.
+//
+// It uses the Fisher-Yates shuffle algorithm and [crypto/rand] for
+// cryptographically secure selection from the internal dictionary.
+func GeneratePassphrase(length int) string {
 	if length > len(dictionary.Words) {
 		length = len(dictionary.Words)
 	}
