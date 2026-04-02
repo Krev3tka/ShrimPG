@@ -133,6 +133,9 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 
+	dbPool.Close()
+	_ = redisDb.Close()
+
 	err = server.Shutdown(shutdownCtx)
 	if err != nil {
 		slog.Error("Error: failed to shutdown server correctly", "error", err)

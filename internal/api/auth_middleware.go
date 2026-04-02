@@ -30,6 +30,12 @@ func (h *Handler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
+		masterKey := r.Header.Get("X-Master-Key")
+		if masterKey == "" {
+			http.Error(w, "X-Master-Key header is required", http.StatusUnauthorized)
+			return
+		}
+
 		var sess Session
 		if err := json.Unmarshal(data, &sess); err != nil {
 			slog.Error("Failed to unmarshal session", "error", err)
@@ -37,10 +43,10 @@ func (h *Handler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		slog.Debug("Session data", "id", sess.UserID, "hasKey", sess.Key != "")
+		slog.Debug("Session data", "id", sess.UserID)
 
 		ctx := context.WithValue(r.Context(), contextKey("userID"), sess.UserID)
-		ctx = context.WithValue(ctx, contextKey("masterKey"), sess.Key)
+		ctx = context.WithValue(ctx, contextKey("masterKey"), masterKey)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}

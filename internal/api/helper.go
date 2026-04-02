@@ -2,7 +2,7 @@
 package api
 
 import (
-	"encoding/hex"
+	"crypto/sha256"
 	"errors"
 	"net/http"
 )
@@ -18,10 +18,8 @@ func getContextValues(r *http.Request) (int, []byte, error) {
 		return 0, nil, errors.New("missing userID")
 	}
 
-	encryptionKey, err := hex.DecodeString(keyHex)
-	if err != nil {
-		return 0, nil, errors.New("invalid encryption key format")
-	}
+	hash := sha256.Sum256([]byte(keyHex))
+	encryptionKey := hash[:]
 
 	return userID, encryptionKey, nil
 }

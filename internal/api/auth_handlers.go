@@ -2,7 +2,6 @@
 package api
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -25,7 +24,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, derivedKey, err := h.storage.VerifyMasterKey(r.Context(), req.Username, req.Masterkey)
+	userID, _, err := h.storage.VerifyMasterKey(r.Context(), req.Username, req.Masterkey)
 	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -33,7 +32,6 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	sessionData := Session{
 		UserID: userID,
-		Key:    hex.EncodeToString(derivedKey),
 	}
 
 	data, _ := json.Marshal(sessionData)
