@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package crypto.v1;
+
+option go_package = "github.com/Krev3tka/ShrimPG/internal/crypto/rpc;rpc";
+
+service CryptoService {
+  rpc GenerateRandomBytes(GenerateRandomBytesRequest) returns (GenerateRandomBytesResponse);
+  rpc DeriveKey(DeriveKeyRequest) returns (DeriveKeyResponse);
+  rpc EncryptWithKey(EncryptWithKeyRequest) returns (EncryptWithKeyResponse);
+  rpc DecryptWithKey(DecryptWithKeyRequest) returns (DecryptWithKeyResponse);
+}
+
+message GenerateRandomBytesRequest {
+  uint32 n = 1;
+}
+
+message GenerateRandomBytesResponse {
+  bytes data = 1;
+}
+
+message DeriveKeyRequest {
+  string password = 1;
+  bytes salt = 2;
+}
+
+message DeriveKeyResponse {
+  bytes key = 1;
+}
+
+message EncryptWithKeyRequest {
+  bytes key = 1;
+  bytes plaintext = 2;
+}
+
+message EncryptWithKeyResponse {
+  bytes salt = 1;
+  bytes nonce = 2;
+  bytes ciphertext = 3;
+}
+
+message DecryptWithKeyRequest {
+  bytes key = 1;
+  bytes nonce = 2;
+  bytes ciphertext = 3;
+}
+
+message DecryptWithKeyResponse {
+  bytes plaintext = 1;
+}

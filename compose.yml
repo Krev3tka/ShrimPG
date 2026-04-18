@@ -5,6 +5,7 @@ services:
       - CONN_STR=postgres://shrimp_user:shrimp_password@db:5432/shrimp_db
       - SERVER_ADDRESS=0.0.0.0:8080
       - REDIS_ADDR=redis:6379
+      - CRYPTO_SERVICE_ADDR=crypto:50051
     env_file:
       - .env
     ports:
@@ -12,6 +13,17 @@ services:
     depends_on:
       db:
           condition: service_healthy
+      crypto:
+        condition: service_started
+    networks:
+      - custom_net
+  crypto:
+    build:
+      context: ./rust-crypto-service
+    environment:
+      - CRYPTO_SERVICE_ADDRESS=0.0.0.0:50051
+    ports:
+      - "50051:50051"
     networks:
       - custom_net
   db:
