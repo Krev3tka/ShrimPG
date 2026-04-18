@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Krev3tka/ShrimPG/internal/crypto"
+	cryptorpc "github.com/Krev3tka/ShrimPG/internal/crypto/rpc"
 	"github.com/Krev3tka/ShrimPG/internal/model"
 	"github.com/Krev3tka/ShrimPG/pkg/validator"
 )
@@ -22,7 +23,7 @@ func (s *DBStorage) VerifyMasterKey(ctx context.Context, username string, master
 		return 0, nil, fmt.Errorf("user not found: %w", err)
 	}
 
-	key, err := crypto.DeriveKey(masterKey, salt)
+	key, err := s.deriveKey(ctx, masterKey, salt)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -35,25 +36,20 @@ func (s *DBStorage) VerifyMasterKey(ctx context.Context, username string, master
 }
 
 func (s *DBStorage) CreateUser(ctx context.Context, username string, masterKey string) (int, error) {
-	salt, err := crypto.GenerateRandomBytes(s.Config.params.SaltLength)
-
+	salt, err := s.generateRandomBytes(ctx, s.Config.params.SaltLength)
 	if err != nil {
 		return 0, err
 	}
 
-	hash, err := crypto.DeriveKey(masterKey, salt)
-
+	hash, err := s.deriveKey(ctx, masterKey, salt)
 	if err != nil {
 		return 0, err
 	}
 
 	var id int
 	query := "INSERT INTO users (name, master_hash, master_salt) VALUES ($1, $2, $3) RETURNING id"
-
 	err = s.Pool.QueryRow(ctx, query, username, hash, salt).Scan(&id)
-
 	return id, err
-
 }
 
 func (s *DBStorage) SavePassword(userID int, service string, passwd string, encryptionKey []byte) error {
@@ -61,7 +57,7 @@ func (s *DBStorage) SavePassword(userID int, service string, passwd string, encr
 		return fmt.Errorf("your password isn't safe yet: %w", err)
 	}
 
-	encrypted, err := crypto.Encrypt([]byte(passwd), encryptionKey)
+	encrypted, err := s.encrypt(context.Background(), []byte(passwd), encryptionKey)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt data: %w", err)
 	}
@@ -91,7 +87,7 @@ func (s *DBStorage) GetPassword(userID int, serviceName string, encryptionKey []
 		return nil, fmt.Errorf("db: get password: %w", err)
 	}
 
-	decryptedData, err := crypto.Decrypt(encryptedData, encryptionKey)
+	decryptedData, err := s.decrypt(context.Background(), encryptedData, encryptionKey)
 	if err != nil {
 		return nil, fmt.Errorf("db: get password: %w", err)
 	}
@@ -139,7 +135,7 @@ func (s *DBStorage) GetAllPasswords(userID int, encryptionKey []byte) (model.Ent
 			return nil, fmt.Errorf("db: get all passwords: %w", err)
 		}
 
-		decryptedData, err := crypto.Decrypt(encryptedData, encryptionKey)
+		decryptedData, err := s.decrypt(context.Background(), encryptedData, encryptionKey)
 		if err != nil {
 			continue
 		}
@@ -149,3 +145,33 @@ func (s *DBStorage) GetAllPasswords(userID int, encryptionKey []byte) (model.Ent
 
 	return entry, nil
 }
+
+func (s *DBStorage) generateRandomBytes(ctx context.Context, n uint32) ([]byte, error) {
+	if s.Crypto != nil {
+		return s.Crypto.GenerateRandomBytes(ctx, n)
+	}
+	return crypto.GenerateRandomBytes(n)
+}
+
+func (s *DBStorage) deriveKey(ctx context.Context, password string, salt []byte) ([]byte, error) {
+	if s.Crypto != nil {
+		return s.Crypto.DeriveKey(ctx, password, salt)
+	}
+	return crypto.DeriveKey(password, salt)
+}
+
+func (s *DBStorage) encrypt(ctx context.Context, plaintext []byte, key []byte) ([]byte, error) {
+	if s.Crypto != nil {
+		return s.Crypto.Encrypt(ctx, plaintext, key)
+	}
+	return crypto.Encrypt(plaintext, key)
+}
+
+func (s *DBStorage) decrypt(ctx context.Context, ciphertext []byte, key []byte) ([]byte, error) {
+	if s.Crypto != nil {
+		return s.Crypto.Decrypt(ctx, ciphertext, key)
+	}
+	return crypto.Decrypt(ciphertext, key)
+}
+
+var _ CryptoEngine = (*cryptorpc.Service)(nil)

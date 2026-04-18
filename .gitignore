@@ -8,4 +8,5 @@ shrimpg
 postgres_data/
 
 dictionary.go
+rust-crypto-service/target/
 

@@ -1,0 +1,18 @@
+[package]
+name = "shrimpg-crypto-service"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+aes-gcm = "0.10"
+argon2 = "0.5"
+prost = "0.13"
+rand = "0.8"
+thiserror = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+tonic = { version = "0.12", features = ["transport"] }
+zeroize = "1"
+
+[build-dependencies]
+prost-build = "0.13"
+tonic-build = "0.12"

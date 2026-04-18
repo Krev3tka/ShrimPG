@@ -12,8 +12,11 @@ import (
 	"time"
 
 	"github.com/Krev3tka/ShrimPG/internal/api"
+	"github.com/Krev3tka/ShrimPG/internal/crypto/rpc"
 	"github.com/Krev3tka/ShrimPG/internal/db"
 	"github.com/Krev3tka/ShrimPG/internal/storage"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -64,6 +67,18 @@ func main() {
 
 	// Инициализация хранилища
 	vault := db.NewDBStorage(dbPool)
+	if cryptoAddr := os.Getenv("CRYPTO_SERVICE_ADDR"); cryptoAddr != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		conn, err := grpc.DialContext(ctx, cryptoAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+		cancel()
+		if err != nil {
+			slog.Warn("crypto service unavailable; falling back to local crypto", "error", err)
+		} else {
+			vault = db.NewDBStorageWithCrypto(dbPool, db.NewCryptoEngineFromConn(rpc.NewCryptoServiceClient(conn)))
+			defer conn.Close()
+			slog.Info("crypto service connected", "address", cryptoAddr)
+		}
+	}
 
 	// Проверка БД на готовность. Эта проверка нужна на случай, когда Go-backend запускается быстрее БД
 	for i := 0; i < 5; i++ {
