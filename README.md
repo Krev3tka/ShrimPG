@@ -57,9 +57,7 @@ The project follows a layered architecture, decoupling business logic from stora
 
     [x] CRUD Core: Fully functional REST API for password management.
 
-    [ ] Rust Integration: Moving encryption logic to a Rust module via gRPC.
-
-    [ ] Desktop Client: Cross-platform GUI (Tauri).
+    [ ] Desktop Client: Cross-platform GUI (Wails + Svelte.js).
 
 📄 License
 
