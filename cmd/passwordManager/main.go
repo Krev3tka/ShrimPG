@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -12,49 +13,80 @@ import (
 	"time"
 
 	"github.com/Krev3tka/ShrimPG/internal/api"
+	"github.com/Krev3tka/ShrimPG/internal/crypto"
 	"github.com/Krev3tka/ShrimPG/internal/db"
 	"github.com/Krev3tka/ShrimPG/internal/storage"
+	"github.com/joho/godotenv"
 )
 
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
+}
+
 func main() {
+	if err := godotenv.Load(); err != nil {
+		slog.Warn("No .env file found, using system env")
+	}
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	// __Конфигурация редиса__
+	// Generate server encryption key (persistent across server lifetime)
+	encodedKey := os.Getenv("SERVER_SECRET_KEY")
+	var serverKey []byte
 
-	// Получение редис-БД адрФеса
-	rdsAddr := os.Getenv("REDISDB_ADDRESS")
+	if encodedKey != "" {
+		decoded, err := base64.StdEncoding.DecodeString(encodedKey)
+		if err != nil || len(decoded) != 32 {
+			slog.Error("Invalid SERVER_SECRET_KEY in .env (must be 32 bytes base64)", "error", err)
+			return
+		}
+		serverKey = decoded
+		slog.Info("Using persistent server key from .env")
+	} else {
+		slog.Warn("SERVER_SECRET_KEY not found in .env, generating temporary key")
+		serverKey, _ = crypto.GenerateRandomBytes(32)
+	}
 
-	// Инициализация редис-конфигурации
+	// __Redis Configuration__
+
+	// Get Redis address from environment variables
+	rdsAddr := getEnv("REDISDB_ADDRESS", "127.0.0.1:6379")
+	slog.Info("Checking Redis address", "addr", rdsAddr)
+
+	// Initialize Redis configuration
 	cfg := storage.Config{
 		Addr:        rdsAddr,
-		Password:    "",
+		Password:    getEnv("REDISDB_PASSWORD", ""),
 		User:        "",
 		DB:          0,
 		MaxRetries:  3,
-		DialTimeout: 1 * time.Second,
+		DialTimeout: 5 * time.Second,
 		Timeout:     10 * time.Second,
 	}
 
-	// Инициализация клиента редис БД
+	// Initialize Redis client
 	redisDb, err := storage.NewClient(context.Background(), cfg)
 	if err != nil {
 		panic(err)
 	}
 
-	// Создание пула соединений для БД
+	// Create database connection pool
 	dbPool, err := db.Connect()
 	if err != nil {
 		slog.Error("Database connection failed", "details", err)
 		return
 	}
 
-	// __Логика порта__
+	// __Server Address Logic__
 
-	// Получение адреса http-сервера
+	// Get HTTP server address from environment variables
 	serverAddr := os.Getenv("SERVER_ADDRESS")
 	if serverAddr == "" {
-		serverAddr = "0.0.0.0:8080"
+		serverAddr = "127.0.0.1:8080"
 	}
 
 	u, err := url.Parse(serverAddr)
@@ -62,10 +94,10 @@ func main() {
 		slog.Info("database connection established", "host", u.Host)
 	}
 
-	// Инициализация хранилища
+	// Initialize vault storage
 	vault := db.NewDBStorage(dbPool)
 
-	// Проверка БД на готовность. Эта проверка нужна на случай, когда Go-backend запускается быстрее БД
+	// Database readiness check. Required if the backend starts faster than the database container
 	for i := 0; i < 5; i++ {
 		pingCtx, cancelPing := context.WithTimeout(context.Background(), 2*time.Second)
 		err = dbPool.Ping(pingCtx)
@@ -77,56 +109,54 @@ func main() {
 		time.Sleep(2 * time.Second)
 	}
 
-	// Инициализация SQL-миграций
+	// Initialize SQL migrations
 	slog.Info("running migrations...")
 	if err := db.InitMigrations(dbPool, "./migrations"); err != nil {
 		slog.Error("failed to run migrations", "error", err)
 		return
 	}
 
-	// __Хендлеры__
+	// __Handlers__
 
-	// Создание хендлера
-	handler := api.NewHandler(vault, redisDb)
+	// Create API handler
+	handler := api.NewHandler(vault, redisDb, serverKey)
 
-	// Инициализация эндпоинтов
+	// Initialize endpoints and routing
 	mux := http.NewServeMux()
 	mux.HandleFunc("/register", api.CORSmiddleware(handler.Register))
-	mux.HandleFunc("/login", api.CORSmiddleware(handler.Login))
+	mux.HandleFunc("/login", api.CORSmiddleware(handler.RateLimit(handler.Login)))
 	mux.HandleFunc("/logout", handler.AuthMiddleware(handler.Logout))
 	mux.HandleFunc("/passwords/create", api.CORSmiddleware(handler.AuthMiddleware(handler.CreatePasswordRequest)))
 	mux.HandleFunc("/passwords/get", api.CORSmiddleware(handler.AuthMiddleware(handler.GetPasswordRequest)))
 	mux.HandleFunc("/passwords/delete", api.CORSmiddleware(handler.AuthMiddleware(handler.DeletePasswordRequest)))
 	mux.HandleFunc("/passwords/list", api.CORSmiddleware(handler.AuthMiddleware(handler.GetAllPasswordsRequest)))
 
-	// Заготовка для graceful shutdown
+	// Setup for graceful shutdown
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
 	slog.Info("Server is starting.", "address", serverAddr)
 
-	// __Сервер__
+	// __Server__
 
-	// Инициализация сервера
+	// Initialize HTTP server settings
 	server := &http.Server{
 		Addr:         serverAddr,
-		Handler:      nil,
+		Handler:      mux,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  15 * time.Second,
 	}
 
-	server.Handler = mux
-
-	// Горутина для работы сервера. Обработка ошибки и потенциального краша
+	// Goroutine for server execution. Handles potential crashes
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.ListenAndServeTLS("server.crt", "server.key"); err != nil && err != http.ErrServerClosed {
 			slog.Error("Server crashed unexpectedly", "error", err)
 			os.Exit(1)
 		}
 	}()
 
-	// Graceful shutdown
+	// Graceful shutdown handling
 
 	<-exit
 

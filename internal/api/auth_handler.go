@@ -1,0 +1,103 @@
+// Copyright (C) 2026 krev3tka. Licensed under the GNU GPL v3.
+package api
+
+import (
+	"encoding/json"
+	"log/slog"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/Krev3tka/ShrimPG/internal/auth"
+)
+
+func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	var req struct {
+		Username string `json:"username"`
+		AuthHash string `json:"authHash"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := h.storage.VerifyAuthHash(r.Context(), req.Username, req.AuthHash)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	session := Session{
+		UserID: userID,
+	}
+
+	data, _ := json.Marshal(session)
+	token, _ := auth.GenerateRandomToken()
+
+	h.rds.Set(r.Context(), "session:"+token, data, 15*time.Minute)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"token": token})
+}
+
+func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		http.Error(w, "missing token", http.StatusUnauthorized)
+		return
+	}
+
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+
+	err := h.rds.Del(r.Context(), "session:"+token).Err()
+	if err != nil {
+		slog.Error("Failed to delete data from redis DB", "error", err)
+	}
+
+	slog.Info("Logout attempt", "token_len", len(token))
+	if len(token) > 4 {
+		slog.Info("Logout successful", "token_prefix", token[:4])
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Connection", "close")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"logged out"}`))
+}
+
+func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	var req struct {
+		Username string `json:"username"`
+		AuthHash string `json:"authHash"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Username) <= 6 {
+		slog.Warn("Registration failed: username too short", "username", req.Username)
+		http.Error(w, "Invalid username", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Username) >= 50 {
+		slog.Warn("Registration failed: username too long", "username", req.Username)
+		http.Error(w, "Invalid username", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := h.storage.CreateUser(r.Context(), req.Username, req.AuthHash); err != nil {
+		http.Error(w, "Failed to create user", http.StatusConflict)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}

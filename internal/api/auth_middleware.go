@@ -30,16 +30,17 @@ func (h *Handler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		masterKey := r.Header.Get("X-Master-Key")
-		if masterKey == "" {
-			http.Error(w, "X-Master-Key header is required", http.StatusUnauthorized)
-			return
-		}
-
 		var sess Session
 		if err := json.Unmarshal(data, &sess); err != nil {
 			slog.Error("Failed to unmarshal session", "error", err)
 			http.Error(w, "Internal error", http.StatusInternalServerError)
+			return
+		}
+
+		masterKey, err := DecryptSessionKey(sess.EncryptedKey, h.serverKey)
+		if err != nil {
+			slog.Error("Failed to decrypt session key", "error", err)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 

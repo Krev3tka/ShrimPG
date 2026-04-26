@@ -2,12 +2,14 @@
 package api
 
 import (
+	"github.com/Krev3tka/ShrimPG/internal/db"
 	"github.com/redis/go-redis/v9"
 )
 
-func NewHandler(dbStorage PasswordStorage, redisClient *redis.Client) *Handler {
+func NewHandler(dbStorage *db.DBStorage, redisClient *redis.Client, serverKey []byte) *Handler {
 	return &Handler{
-		storage: dbStorage,
-		rds:     redisClient,
+		storage:   dbStorage,
+		rds:       redisClient,
+		serverKey: serverKey,
 	}
 }

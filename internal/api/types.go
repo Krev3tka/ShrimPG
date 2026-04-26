@@ -9,22 +9,23 @@ import (
 )
 
 type PasswordStorage interface {
-	SavePassword(userID int, service, passwd string, encryptionKey []byte) error
-	GetPassword(userID int, serviceName string, encryptionKey []byte) ([]byte, error)
+	SavePassword(userID int, service, encryptedData []byte) error
+	GetPassword(userID int, serviceName string) ([]byte, error)
 	DeletePassword(userID int, service string) error
-	VerifyMasterKey(ctx context.Context, username string, masterKey string) (int, []byte, error)
-	GetAllPasswords(userID int, encryptionKey []byte) (model.Entry, error)
+	VerifyAuthHash(ctx context.Context, username string, masterKey string) (int, error)
+	GetAllPasswords(userID int) (model.Entry, error)
 	CreateUser(ctx context.Context, username string, masterKey string) (int, error)
 }
 
 type Handler struct {
-	storage PasswordStorage
-	rds     *redis.Client
+	storage   PasswordStorage
+	rds       *redis.Client
+	serverKey []byte
 }
 
 type Session struct {
-	UserID int    `json:"user_id"`
-	Key    string `json:"key"`
+	UserID       int    `json:"user_id"`
+	EncryptedKey []byte `json:"encrypted_key"`
 }
 
 type SaveRequest struct {
@@ -42,3 +43,8 @@ type PasswordResponse struct {
 }
 
 type contextKey string
+
+type AuthRequest struct {
+	Username string `json:"username"`
+	AuthHash string `json:"authHash"` // Результат Argon2/PBKDF2 на клиенте
+}

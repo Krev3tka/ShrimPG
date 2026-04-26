@@ -4,6 +4,8 @@ shrimpg
 /app
 
 .env
+*.crt
+*.key
 
 postgres_data/
 

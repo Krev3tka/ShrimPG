@@ -9,7 +9,7 @@ import (
 )
 
 func (h *Handler) CreatePasswordRequest(w http.ResponseWriter, r *http.Request) {
-	userID, encryptionKey, err := getContextValues(r)
+	userID, err := getContextValues(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -26,8 +26,8 @@ func (h *Handler) CreatePasswordRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := h.storage.SavePassword(userID, req.Service, req.Password, encryptionKey); err != nil {
-		http.Error(w, "Failed to save password: "+err.Error(), http.StatusInternalServerError)
+	if err := h.storage.SavePassword(userID, []byte(req.Service), []byte(req.Password)); err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
@@ -36,7 +36,7 @@ func (h *Handler) CreatePasswordRequest(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) GetPasswordRequest(w http.ResponseWriter, r *http.Request) {
-	userID, encryptionKey, err := getContextValues(r)
+	userID, err := getContextValues(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -56,19 +56,19 @@ func (h *Handler) GetPasswordRequest(w http.ResponseWriter, r *http.Request) {
 
 	if strings.Trim(req.Service, " ") == "" {
 		slog.Error("Error: null service name", "user_id", userID)
-		http.Error(w, "Error: null service name", http.StatusBadRequest)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	if len(req.Service) > 40 {
 		slog.Error("Error: too long service name", "user_id", userID)
-		http.Error(w, "Error: too long service name", http.StatusBadRequest)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	passwd, err := h.storage.GetPassword(userID, req.Service, encryptionKey)
+	passwd, err := h.storage.GetPassword(userID, req.Service)
 	if err != nil {
-		http.Error(w, "Failed to get password: "+err.Error(), http.StatusNotFound)
+		http.Error(w, "Not found", http.StatusNotFound)
 		return
 	}
 
@@ -79,7 +79,7 @@ func (h *Handler) GetPasswordRequest(w http.ResponseWriter, r *http.Request) {
 	})
 	slog.Info("JSON decoded successfully", "service", req.Service)
 	if err != nil {
-		http.Error(w, "Failed to write JSON"+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -93,7 +93,7 @@ func (h *Handler) DeletePasswordRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	userID, _, err := getContextValues(r)
+	userID, err := getContextValues(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -122,15 +122,15 @@ func (h *Handler) DeletePasswordRequest(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) GetAllPasswordsRequest(w http.ResponseWriter, r *http.Request) {
-	userID, encryptionKey, err := getContextValues(r)
+	userID, err := getContextValues(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	passwords, err := h.storage.GetAllPasswords(userID, encryptionKey)
+	passwords, err := h.storage.GetAllPasswords(userID)
 	if err != nil {
-		http.Error(w, "Failed: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
