@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Krev3tka/ShrimPG/internal/api"
-	"github.com/Krev3tka/ShrimPG/internal/crypto"
-	"github.com/Krev3tka/ShrimPG/internal/db"
-	"github.com/Krev3tka/ShrimPG/internal/storage"
+	"github.com/Krev3tka/ShrimPG-backend/internal/api"
+	"github.com/Krev3tka/ShrimPG-backend/internal/crypto"
+	"github.com/Krev3tka/ShrimPG-backend/internal/db"
+	"github.com/Krev3tka/ShrimPG-backend/internal/storage"
 	"github.com/joho/godotenv"
 )
 
