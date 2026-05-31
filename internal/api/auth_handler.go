@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Krev3tka/ShrimPG/internal/auth"
+	"github.com/Krev3tka/ShrimPG/internal/crypto"
 )
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
@@ -30,8 +31,13 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sessionKey, _ := crypto.GenerateRandomBytes(32)
+
+	encryptedKey, _ := crypto.Encrypt(sessionKey, h.serverKey)
+
 	session := Session{
-		UserID: userID,
+		UserID:       userID,
+		EncryptedKey: encryptedKey,
 	}
 
 	data, _ := json.Marshal(session)

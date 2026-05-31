@@ -1,0 +1,15 @@
+// Copyright (C) 2026 krev3tka. Licensed under the GNU GPL v3.
+package dictionary
+
+var Words = []string{
+	"shrimp",
+	"prawn",
+	"ocean",
+	"shell",
+	"water",
+	"coral",
+	"deep",
+	"blue",
+	"salt",
+	"wave",
+}
