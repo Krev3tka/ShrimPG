@@ -43,23 +43,82 @@ The project follows a layered architecture, decoupling business logic from stora
 
 2. Start the infrastructure:
     ``` Bash
-    docker-compose up -d
+    docker-compose up --build -d
+
+## API Reference
+
+The server enforces TLS (ListenAndServeTLS), so all endpoints must be accessed via https://.
+For local testing with self-signed certs, use curl -k to bypass verification.
+1. User Registration (POST /api/v1/register)
+    ```Bash
     
-3. Run the application:
-    ``` Bash
-    go run cmd/passwordManager/main.go
+    curl -k -X POST [https://127.0.0.1:8080/api/v1/register](https://127.0.0.1:8080/api/v1/register) \
+      -H "Content-Type: application/json" \
+      -d '{"username": "your_username", "password": "your_master_password"}'
 
-🗺 Roadmap
+2. User Login (POST /api/v1/login)
+    ```Bash
+    
+    curl -k -X POST [https://127.0.0.1:8080/api/v1/login](https://127.0.0.1:8080/api/v1/login) \
+      -H "Content-Type: application/json" \
+      -d '{"username": "your_username", "password": "your_master_password"}'
+    ```
 
-    [x] PostgreSQL Integration: Docker-ready with volume persistence.
+    Expected Response:
+    JSON
+    
+    {"token": "YOUR_TOKEN"}
 
-    [x] Session-based Auth: Secure middleware with master-key validation.
+3. User Logout (POST /api/v1/logout)
+    ```Bash
+    
+    curl -k -X POST [https://127.0.0.1:8080/api/v1/logout](https://127.0.0.1:8080/api/v1/logout) \
+      -H "Authorization: Bearer <YOUR_SESSION_TOKEN>"
 
-    [x] CRUD Core: Fully functional REST API for password management.
+4. Create Password Entry (POST /api/v1/passwords/create)
+    ```Bash
+    
+    curl -k -X POST [https://127.0.0.1:8080/api/v1/passwords/create](https://127.0.0.1:8080/api/v1/passwords/create) \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer <YOUR_TOKEN>" \
+      -d '{"service": "github.com", "login": "your_username", "password": "secret_password"}'
 
-    [ ] Desktop Client: Cross-platform GUI (Wails + Svelte.js).
+5. Get Specific Password (POST or GET /api/v1/passwords/get)
 
-📄 License
+   Note: Service name must be passed in the JSON body (max 40 chars).
+   ```Bash
+    
+   curl -k -X GET [https://127.0.0.1:8080/api/v1/passwords/get](https://127.0.0.1:8080/api/v1/passwords/get) \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer <YOUR_SESSION_TOKEN>" \
+     -d '{"service": "github.com"}'
+
+6. Delete Password Entry (DELETE /api/v1/passwords/delete)
+    Note: Service name must be passed in the JSON body.
+    ```Bash
+    
+    curl -k -X DELETE [https://127.0.0.1:8080/api/v1/passwords/delete](https://127.0.0.1:8080/api/v1/passwords/delete) \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer <YOUR_SESSION_TOKEN>" \
+      -d '{"service": "github.com"}'
+
+7. List All Passwords (GET /api/v1/passwords/list)
+    ```Bash
+    
+    curl -k -X GET [https://127.0.0.1:8080/api/v1/passwords/list](https://127.0.0.1:8080/api/v1/passwords/list) \
+      -H "Authorization: Bearer <YOUR_TOKEN>"
+
+Roadmap
+
+- [x] PostgreSQL Integration: Docker-ready with volume persistence.
+
+- [x] Session-based Auth: Secure middleware with master-key validation.
+
+- [x] CRUD Core: Fully functional REST API for password management.
+
+- [ ] TUI client, based on BubbleTea framework.
+
+License
 
 Distributed under the GNU GPL v3 License. See LICENSE for more information.
 
