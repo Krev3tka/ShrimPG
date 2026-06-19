@@ -116,10 +116,10 @@ Roadmap
 
 - [x] CRUD Core: Fully functional REST API for password management.
 
-- [ ] TUI client, based on BubbleTea framework.
+- [ ] TUI client, based on Ratatui and Rust programming language.
 
 License
 
-Distributed under the GNU GPL v3 License. See LICENSE for more information.
+Distributed under the MPL v2 License. See LICENSE for more information.
 
 Built with 🦐 passion by Krev3tka
